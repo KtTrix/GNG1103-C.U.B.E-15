@@ -45,7 +45,7 @@ public class TelemetryPanel : MonoBehaviour
 
     void Awake()
     {
-        if (telemetry == null) telemetry = FindFirstObjectByType<TelemetryClient>();
+        if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
         labelHex = Hex(labelColor);
         sunlitHex = Hex(sunlitColor);
         eclipseHex = Hex(eclipseColor);

@@ -684,7 +684,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7e567abbf4d944210acb6315178bb015, type: 3}
   m_Name: ARCameraFeature Android
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: 'Meta Quest: Camera (Passthrough)'
   version: 0.1.0
   featureIdInternal: com.unity.openxr.feature.arfoundation-meta-camera
@@ -711,8 +711,19 @@ MonoBehaviour:
   features:
   - {fileID: 8736661028334727731}
   - {fileID: 3598254934845347770}
+  - {fileID: -8774941301766677846}
+  - {fileID: -6883162805206299532}
   - {fileID: 1170704673688743257}
+  - {fileID: 1057029249475784198}
+  - {fileID: 4938434046876692283}
+  - {fileID: 8939592773414514095}
+  - {fileID: -2245551880382097665}
+  - {fileID: 5413614911233671520}
   - {fileID: 5153017048313567732}
+  - {fileID: 3436959125358854558}
+  - {fileID: -568645613819052263}
+  - {fileID: -3219656029372594877}
+  - {fileID: -5890732679141325151}
   - {fileID: -8705318006256794946}
   - {fileID: 6481653220666705815}
   - {fileID: 7393116930172532905}
@@ -722,6 +733,8 @@ MonoBehaviour:
   - {fileID: 3344995148386438684}
   - {fileID: 6389727029650002286}
   - {fileID: -4166740740631445519}
+  - {fileID: 4288601767319154666}
+  - {fileID: -5200123417106185953}
   - {fileID: -8999059302058509960}
   - {fileID: -5212364890371797913}
   - {fileID: 3837512152752227827}
@@ -734,11 +747,13 @@ MonoBehaviour:
   - {fileID: -6300852659050339468}
   - {fileID: -4782912542820276973}
   - {fileID: 1109513913212486038}
+  - {fileID: -4092063297398084056}
   - {fileID: -500553951895718075}
   - {fileID: 8461216366325073885}
   - {fileID: -8385369577385903398}
   - {fileID: -2778858118241658710}
   - {fileID: 430188747721659633}
+  - {fileID: -7650228802915767955}
   - {fileID: 750856212347791325}
   - {fileID: 2821238428615573753}
   - {fileID: -7677771197093365762}
@@ -748,21 +763,6 @@ MonoBehaviour:
   - {fileID: 6854443372140345734}
   - {fileID: 8347051584439025853}
   - {fileID: 2684350569200705238}
-  - {fileID: -4092063297398084056}
-  - {fileID: -7650228802915767955}
-  - {fileID: 5413614911233671520}
-  - {fileID: 4938434046876692283}
-  - {fileID: -8774941301766677846}
-  - {fileID: -6883162805206299532}
-  - {fileID: 8939592773414514095}
-  - {fileID: 3436959125358854558}
-  - {fileID: -3219656029372594877}
-  - {fileID: -2245551880382097665}
-  - {fileID: 1057029249475784198}
-  - {fileID: -568645613819052263}
-  - {fileID: -5890732679141325151}
-  - {fileID: -5200123417106185953}
-  - {fileID: 4288601767319154666}
   customLoaderName: 
   m_renderMode: 0
   m_latencyOptimization: 0
@@ -3085,6 +3085,6 @@ MonoBehaviour:
   m_symmetricProjection: 0
   m_optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
-  m_hasMigratedMultiviewRenderRegionSetting: 0
+  m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 1
   m_useOpenXRPredictedTime: 1

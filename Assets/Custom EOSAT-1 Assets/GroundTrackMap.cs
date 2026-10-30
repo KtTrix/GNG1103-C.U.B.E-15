@@ -68,7 +68,7 @@ public class GroundTrackMap : MonoBehaviour
     void Start()
     {
         if (mapRect == null) mapRect = GetComponent<RectTransform>();
-        if (telemetry == null) telemetry = FindFirstObjectByType<TelemetryClient>();
+        if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
 
         if (trackLine != null) trackLine.SetPoints(points);
         if (marker != null) marker.gameObject.SetActive(false);   // hidden until the first frame arrives
