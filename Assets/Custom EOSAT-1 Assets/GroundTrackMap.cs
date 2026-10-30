@@ -7,12 +7,15 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Drives the ground-track panel: a flat (equirectangular) world map with the spacecraft marker,
-/// its recent track, and the five ground stations from the client's planner.
+/// its track, and the five ground stations from the client's planner.
 ///
 /// Put this on the map image object (the RawImage that shows the world map). That object's
 /// RectTransform IS the map, so latitude/longitude are converted to positions inside it:
 ///     x = (lon + 180) / 360        y = (lat + 90) / 180
 /// The map texture must be a standard 2:1 equirectangular image, longitude -180 at the left edge.
+///
+/// Track behaviour: the track stays on the map for a set number of orbits, then each part of it
+/// disappears on its own once it is that old. Lines never affect each other.
 /// </summary>
 public class GroundTrackMap : MonoBehaviour
 {
@@ -24,11 +27,17 @@ public class GroundTrackMap : MonoBehaviour
     [Tooltip("A small round Image, child of the map, pivot in the centre.")]
     [SerializeField] RectTransform marker;
 
-    [Header("Track history")]
-    [Tooltip("How much past track to keep, in simulation seconds. One orbit is about 5670 s.")]
-    [SerializeField] float historySeconds = 5670f;
+    [Header("Track")]
+    [Tooltip("How many orbits of track to keep on the map. Older track disappears.")]
+    [SerializeField] float orbitsToKeep = 3f;
+    [Tooltip("Length of one orbit in simulation seconds. EOSAT-1 is about 5670 (94.5 minutes).")]
+    [SerializeField] float orbitPeriodSeconds = 5670f;
     [Tooltip("Add a track point every this many simulation seconds. Lower = smoother but heavier.")]
     [SerializeField] float sampleEverySimSeconds = 15f;
+    [Tooltip("Safety cap on stored points, oldest dropped first. 15 s samples = about 380 points per orbit.")]
+    [SerializeField] int maxPoints = 3000;
+    [Tooltip("If simulation time jumps forward by more than this, don't draw a line across the gap.")]
+    [SerializeField] float jumpBreakSeconds = 1800f;
 
     [Header("Ground stations")]
     [SerializeField] bool showStations = true;
@@ -82,27 +91,33 @@ public class GroundTrackMap : MonoBehaviour
 
         double t = GetSimSeconds(f);
 
-        // The instructor can reload a saved point (clock goes backwards) or jump far ahead.
-        // The old track would then be wrong, so start it again.
-        if (t < lastTime - 1.0 || t - lastTime > historySeconds)
-            ClearTrack();
+        // The instructor can reload a saved point (the clock goes backwards). The old track
+        // would then describe a future that hasn't happened, so start again.
+        if (t < lastTime - 1.0) ClearTrack();
         lastTime = t;
 
         if (points.Count == 0 || t - lastSampleTime >= sampleEverySimSeconds)
         {
-            bool wrapped = points.Count == 0 || Mathf.Abs(lon - lastSampleLon) > 180f;
+            bool breakLine = points.Count == 0
+                             || Mathf.Abs(lon - lastSampleLon) > 180f      // crossed the map edge
+                             || t - lastSampleTime > jumpBreakSeconds;     // time jumped ahead
             points.Add(new TrackPoint
             {
                 pos = n,
                 eclipse = f.sun != null && f.sun.in_eclipse,
-                breakBefore = wrapped,
+                breakBefore = breakLine,
                 time = t,
             });
             lastSampleTime = t;
             lastSampleLon = lon;
 
-            while (points.Count > 1 && t - points[0].time > historySeconds)
-                points.RemoveAt(0);
+            // Drop track that is older than the number of orbits we want to show.
+            double keepSeconds = orbitPeriodSeconds * orbitsToKeep;
+            int drop = 0;
+            while (drop < points.Count - 1 && t - points[drop].time > keepSeconds) drop++;
+            if (drop > 0) points.RemoveRange(0, drop);
+
+            if (points.Count > maxPoints) points.RemoveRange(0, points.Count - maxPoints);
 
             if (trackLine != null) trackLine.Refresh();
         }

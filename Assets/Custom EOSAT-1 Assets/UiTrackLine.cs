@@ -2,15 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>One point of the ground track. Position is normalised: x = (lon+180)/360, y = (lat+90)/180.</summary>
-public struct TrackPoint
-{
-    public Vector2 pos;
-    public bool eclipse;        // spacecraft was in Earth's shadow here
-    public bool breakBefore;    // do NOT join to the previous point (the track wrapped around the map edge)
-    public double time;         // simulation time in seconds when recorded
-}
-
 /// <summary>
 /// A UI element that draws a polyline, so the ground track lives inside the canvas like any other
 /// UI graphic (it is clipped, scaled and sorted with the panel, and works with the raycaster).
@@ -25,9 +16,9 @@ public class UITrackLine : MaskableGraphic
     [SerializeField] float thickness = 4f;
     [SerializeField] Color sunlitColor  = new Color(0.85f, 0.65f, 0.18f);
     [SerializeField] Color eclipseColor = new Color(0.31f, 0.55f, 0.95f);
-    [Tooltip("Opacity of the oldest part of the track. 1 = no fade.")]
+    [Tooltip("Opacity of the oldest part of the track. 1 = no fade (the planner's look).")]
     [Range(0f, 1f)]
-    [SerializeField] float oldestAlpha = 0.25f;
+    [SerializeField] float oldestAlpha = 1f;
 
     List<TrackPoint> points;   // owned by GroundTrackMap
 
