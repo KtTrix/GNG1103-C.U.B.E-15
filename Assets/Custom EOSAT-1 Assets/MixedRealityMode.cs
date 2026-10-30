@@ -30,7 +30,7 @@ public class MixedRealityMode : MonoBehaviour
 
     [Header("Mode")]
     [SerializeField] bool startInMixedReality = false;
-    [Tooltip("Built-in toggle: the RIGHT controller's primary button (A on Quest Touch controllers), " +
+    [Tooltip("Built-in toggle: the LEFT controller's primary button (X on Quest Touch controllers)," +
              "plus the M key for testing in the editor. Untick to disable.")]
     [SerializeField] bool useDefaultToggleButtons = true;
     [Tooltip("Optional: your own input action. If assigned, it is used instead of the built-in buttons.")]
@@ -79,9 +79,9 @@ public class MixedRealityMode : MonoBehaviour
         else if (useDefaultToggleButtons)
         {
             builtInToggle = new InputAction("ToggleMixedReality", InputActionType.Button);
-            // {PrimaryButton} is the "A" button on the right Quest Touch controller
-            // (X on the left). It works with any OpenXR controller profile.
-            builtInToggle.AddBinding("<XRController>{RightHand}/{PrimaryButton}");
+            // {PrimaryButton} is the "X" button on the left Quest Touch controller
+            // (A on the right, which the template uses for jumping). It works with any OpenXR controller profile.
+            builtInToggle.AddBinding("<XRController>{LeftHand}/{PrimaryButton}");
             builtInToggle.AddBinding("<Keyboard>/m"); // for testing in the editor
             builtInToggle.performed += OnTogglePressed;
             builtInToggle.Enable();
@@ -142,6 +142,10 @@ public class MixedRealityMode : MonoBehaviour
             foreach (var c in vrOnlyComponents)
                 if (c != null) c.enabled = !on;
 
-        Debug.Log($"[MixedReality] mode = {(on ? "Mixed Reality (passthrough)" : "VR")}");
+        // Extra detail so we can see from the logs whether passthrough was actually requested.
+        Debug.Log($"[MixedReality] mode = {(on ? "Mixed Reality (passthrough)" : "VR")}, " +
+                  $"camera manager enabled = {(cameraManager != null ? cameraManager.enabled.ToString() : "n/a")}, " +
+                  $"clearFlags = {(xrCamera != null ? xrCamera.clearFlags.ToString() : "n/a")}, " +
+                  $"background alpha = {(xrCamera != null ? xrCamera.backgroundColor.a.ToString("F1") : "n/a")}");
     }
 }
