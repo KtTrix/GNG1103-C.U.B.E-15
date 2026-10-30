@@ -32,6 +32,18 @@ using UnityEngine;
     public double radius_km;
 }
 
+[Serializable] public class SunData
+{
+    public bool in_eclipse;          // true = spacecraft is in Earth's shadow
+}
+
+[Serializable] public class MissionData
+{
+    public string phase;             // e.g. "NOMINAL"
+    public bool in_contact;          // a ground station can see the spacecraft
+    public string ground_station;    // name of that station, or ""
+}
+
 [Serializable] public class StateFrame
 {
     public string type;              // "hello" or "state"
@@ -40,6 +52,9 @@ using UnityEngine;
     public OrbitData orbit;
     public AttitudeData attitude;
     public EarthData earth;
+    public SunData sun;
+    public MissionData mission;
+    public double met_s;             // mission elapsed time in seconds (0 if the sender omits it)
 }
 
 /// <summary>
