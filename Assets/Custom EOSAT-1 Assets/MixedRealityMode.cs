@@ -19,7 +19,7 @@ public class MixedRealityMode : MonoBehaviour
     [Tooltip("The headset camera (Main Camera under XR Origin). Leave empty to use Camera.main.")]
     [SerializeField] Camera xrCamera;
     [Tooltip("The AR Camera Manager component on that same camera (added in a later stage). " +
-             "Enabling it turns passthrough on. Leave empty until then - the rest of the switch still works.")]
+             "Enabling it turns passthrough on. Leave this EMPTY: the script finds it on the camera by itself. (Dragging the camera object in would pick the wrong component.)")]
     [SerializeField] Behaviour cameraManager;
 
     [Header("Switched OFF in mixed reality")]
@@ -45,12 +45,28 @@ public class MixedRealityMode : MonoBehaviour
     void Awake()
     {
         if (xrCamera == null) xrCamera = Camera.main;
+
+        // Find the AR Camera Manager on the camera by its type NAME, so this script compiles
+        // with or without the AR Foundation package installed. Also ignore a wrongly assigned
+        // Camera component, which would switch the whole camera off.
+        if (cameraManager == null || cameraManager is Camera) cameraManager = FindCameraManager();
+        Debug.Log("[MixedReality] AR Camera Manager " +
+                  (cameraManager != null ? "found" : "NOT found - passthrough cannot be switched yet"));
+
         if (xrCamera != null)
         {
             // Remember the VR look so we can restore it when leaving MR.
             vrClearFlags = xrCamera.clearFlags;
             vrBackground = xrCamera.backgroundColor;
         }
+    }
+
+    Behaviour FindCameraManager()
+    {
+        if (xrCamera == null) return null;
+        foreach (var b in xrCamera.GetComponents<Behaviour>())
+            if (b != null && b.GetType().Name == "ARCameraManager") return b;
+        return null;
     }
 
     void OnEnable()
