@@ -16,3 +16,4 @@
 *.aab
 *.unitypackage
 .DS_Store
+Builds/
