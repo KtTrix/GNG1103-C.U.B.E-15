@@ -72,6 +72,10 @@ public class TelemetryClient : MonoBehaviour
     [SerializeField] string host = "127.0.0.1";
     [SerializeField] int port = 8100;
     [SerializeField] float reconnectDelaySeconds = 2f;
+    [Tooltip("If an address was saved from the Connection panel in the headset, use it instead of the Host above.")]
+    [SerializeField] bool useSavedHost = true;
+
+    const string SavedHostKey = "telemetry.host";
 
     [Header("Debug")]
     [Tooltip("Log lat/lon/alt every N frames so you can compare with the globe. 0 = off.")]
@@ -83,6 +87,11 @@ public class TelemetryClient : MonoBehaviour
     public int FramesReceived { get; private set; }
     public int BadLines { get; private set; }
     public bool IsConnected => connected;
+    /// <summary>The address currently in use.</summary>
+    public string Host => host;
+    public int Port => port;
+    /// <summary>Why the last connection attempt failed (empty while connected).</summary>
+    public string LastError => lastError;
     /// <summary>Seconds since the last valid frame (useful later for a "data fresh" indicator).</summary>
     public float SecondsSinceLastFrame => FramesReceived == 0 ? float.PositiveInfinity
                                                               : Time.unscaledTime - lastFrameTime;
@@ -92,23 +101,53 @@ public class TelemetryClient : MonoBehaviour
     volatile bool connected;
     volatile string lastError = "";
     volatile TcpClient activeClient;
+    int generation;                  // bumped on every (re)start so an old thread knows to quit
 
     readonly object gate = new object();
     string pendingLine;              // only the newest unread line is kept
     float lastFrameTime;
     bool wasConnected;
 
-    void OnEnable()
+    void Awake()
+    {
+        if (useSavedHost && PlayerPrefs.HasKey(SavedHostKey))
+            host = PlayerPrefs.GetString(SavedHostKey, host);
+    }
+
+    void OnEnable() => StartWorker();
+    void OnDisable() => StopWorker();
+
+    /// <summary>
+    /// Switch to another address while the app is running (used by the Connection panel).
+    /// With save = true the address is remembered for next time the app starts.
+    /// </summary>
+    public void SetEndpoint(string newHost, int newPort, bool save = true)
+    {
+        StopWorker();
+        host = newHost;
+        port = newPort;
+        if (save)
+        {
+            PlayerPrefs.SetString(SavedHostKey, newHost);
+            PlayerPrefs.Save();
+        }
+        lastError = "";
+        if (isActiveAndEnabled) StartWorker();
+    }
+
+    void StartWorker()
     {
         running = true;
+        int gen = Interlocked.Increment(ref generation);
         string h = host; int p = port; float delay = reconnectDelaySeconds; // copy for the thread
-        worker = new Thread(() => RunLoop(h, p, delay)) { IsBackground = true, Name = "TelemetryClient" };
+        worker = new Thread(() => RunLoop(h, p, delay, gen)) { IsBackground = true, Name = "TelemetryClient" };
         worker.Start();
     }
 
-    void OnDisable()
+    void StopWorker()
     {
         running = false;
+        Interlocked.Increment(ref generation);   // any old thread now sees it is out of date
         try { activeClient?.Close(); } catch { /* already closed */ }
         worker?.Join(500);
         worker = null;
@@ -116,9 +155,11 @@ public class TelemetryClient : MonoBehaviour
     }
 
     // ── Background thread: never touch Unity objects in here ─────────────────
-    void RunLoop(string h, int p, float retryDelay)
+    void RunLoop(string h, int p, float retryDelay, int gen)
     {
-        while (running)
+        bool Alive() => running && gen == Volatile.Read(ref generation);
+
+        while (Alive())
         {
             try
             {
@@ -129,28 +170,29 @@ public class TelemetryClient : MonoBehaviour
 
                     var connect = client.ConnectAsync(h, p);
                     if (!connect.Wait(3000)) throw new TimeoutException("connect timed out");
+                    if (!Alive()) break;
 
                     connected = true;
                     lastError = "";
                     using (var reader = new StreamReader(client.GetStream(), new UTF8Encoding(false)))
                     {
                         string line;
-                        while (running && (line = reader.ReadLine()) != null)
+                        while (Alive() && (line = reader.ReadLine()) != null)
                         {
                             if (line.Length == 0) continue;
-                            lock (gate) pendingLine = line;
+                            lock (gate) { if (Alive()) pendingLine = line; }
                         }
                     }
-                    lastError = "server closed the connection";
+                    if (Alive()) lastError = "server closed the connection";
                 }
             }
             catch (Exception e)
             {
-                lastError = e.InnerException != null ? e.InnerException.Message : e.Message;
+                if (Alive()) lastError = e.InnerException != null ? e.InnerException.Message : e.Message;
             }
 
-            connected = false;
-            for (float t = 0f; running && t < retryDelay; t += 0.1f) Thread.Sleep(100);
+            if (Alive()) connected = false;
+            for (float t = 0f; Alive() && t < retryDelay; t += 0.1f) Thread.Sleep(100);
         }
     }
 
