@@ -76,13 +76,33 @@ public static class PanelBuilder
         BackButton(opt, mc);
 
         // placeholder pages, filled in later
-        foreach (var n in new[] { "Controls", "Panels", "SatelliteData", "Audio", "Accessibility" })
+        foreach (var n in new[] { "Controls", "Panels", "Audio", "Accessibility" })
         {
             var pg = Page(n, content, false);
             var t = Text("Heading", pg, new Vector2(0.08f, 0.55f), new Vector2(0.92f, 0.9f), 40, TextAlignmentOptions.Center, CubeTheme.Dim);
             t.text = CubeTheme.Title(n == "SatelliteData" ? "Satellite Data" : n) + "\n\n<size=70%>coming soon</size>";
             BackButton(pg, mc);
         }
+
+        SatellitePage(content, mc);
+
+        // Page_ConnectionHelp
+        var help = Page("ConnectionHelp", content, false);
+        var ht = Text("Help Text", help, new Vector2(0.06f, 0.18f), new Vector2(0.94f, 0.97f), 26, TextAlignmentOptions.TopLeft, CubeTheme.Text);
+        ht.enableAutoSizing = true; ht.fontSizeMin = 16; ht.fontSizeMax = 26;
+        ht.overflowMode = TextOverflowModes.Truncate;
+        string dm = CubeTheme.HexString(CubeTheme.Dim);
+        ht.text =
+            "<b>OVER WI-FI</b>\n" +
+            "1. Put the PC and the headset on the same Wi-Fi.\n" +
+            "2. On the PC open Command Prompt and run <b>ipconfig</b>. Note the IPv4 Address of the Wi-Fi adapter.\n" +
+            "3. Type it on the Satellite Data page, keep port 8100, press <b>Connect</b>.\n" +
+            "<color=#" + dm + ">If it won't link, allow TCP 8100 and 8101 through Windows Firewall.</color>\n\n" +
+            "<b>OVER A USB CABLE</b>\n" +
+            "1. Plug the headset into the PC and accept USB debugging inside the headset.\n" +
+            "2. On the PC run: <b>adb reverse tcp:8100 tcp:8100</b>\n" +
+            "3. Press <b>USB Cable</b> on the Satellite Data page.";
+        BackButton(help, mc);
 
         // Page_Credits
         var cr = Page("Credits", content, false);
@@ -108,6 +128,72 @@ public static class PanelBuilder
         Save(root);
     }
 
+
+    // ── Satellite Data page: link status, IP + port, keypad ──────────────────
+    static void SatellitePage(RectTransform content, MenuController mc)
+    {
+        var pg = Page("SatelliteData", content, false);
+        var sp = pg.gameObject.AddComponent<SatelliteDataPage>();
+        var so = new SerializedObject(sp);
+
+        var status = Text("Status", pg, new Vector2(0.05f, 0.87f), new Vector2(0.95f, 0.98f), 36, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        so.FindProperty("statusText").objectReferenceValue = status;
+
+        // the two fields (tap one to choose which the keypad types into)
+        var ipBox = Field("IP Box", pg, new Vector2(0.04f, 0.73f), new Vector2(0.62f, 0.85f), 44, out TMP_Text ipT);
+        var portBox = Field("Port Box", pg, new Vector2(0.65f, 0.73f), new Vector2(0.96f, 0.85f), 44, out TMP_Text portT);
+        UnityEventTools.AddPersistentListener(ipBox.GetComponent<UnityEngine.UI.Button>().onClick, sp.SelectIp);
+        UnityEventTools.AddPersistentListener(portBox.GetComponent<UnityEngine.UI.Button>().onClick, sp.SelectPort);
+        so.FindProperty("ipText").objectReferenceValue = ipT;
+        so.FindProperty("portText").objectReferenceValue = portT;
+        so.FindProperty("ipBox").objectReferenceValue = ipBox;
+        so.FindProperty("portBox").objectReferenceValue = portBox;
+
+        // keypad, 4 rows x 3 columns
+        string[] keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "DEL" };
+        const float x0 = 0.04f, x1 = 0.62f, yTop = 0.70f, yBot = 0.18f;
+        float cw = (x1 - x0) / 3f, ch = (yTop - yBot) / 4f;
+        for (int i = 0; i < keys.Length; i++)
+        {
+            int row = i / 3, col = i % 3;
+            var b = Button(keys[i], pg, new Vector2(x0 + col * cw + 0.006f, yTop - (row + 1) * ch + 0.008f),
+                           new Vector2(x0 + (col + 1) * cw - 0.006f, yTop - row * ch - 0.008f), 40, CubeTheme.Button);
+            if (keys[i] == "DEL") UnityEventTools.AddPersistentListener(b.onClick, sp.Backspace);
+            else UnityEventTools.AddStringPersistentListener(b.onClick, sp.Press, keys[i]);
+        }
+
+        // right-hand buttons
+        var conn = Button("Connect", pg, new Vector2(0.65f, 0.578f), new Vector2(0.96f, 0.692f), 30, CubeTheme.ButtonAccent);
+        UnityEventTools.AddPersistentListener(conn.onClick, sp.Connect);
+        var usb = Button("USB cable", pg, new Vector2(0.65f, 0.448f), new Vector2(0.96f, 0.562f), 28, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(usb.onClick, sp.UseUsb);
+        var clr = Button("Clear", pg, new Vector2(0.65f, 0.318f), new Vector2(0.96f, 0.432f), 30, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(clr.onClick, sp.Clear);
+
+        Nav(pg, mc, "Instructions", "ConnectionHelp", 22, new Vector2(0.65f, 0.188f), new Vector2(0.96f, 0.302f));
+
+        so.ApplyModifiedPropertiesWithoutUndo();
+        BackButton(pg, mc);
+    }
+
+    // a text box that is also a button; the page script tints its Image to show which one is selected
+    static Image Field(string name, Transform parent, Vector2 aMin, Vector2 aMax, int size, out TMP_Text text)
+    {
+        var rt = Rect(name, parent, aMin, aMax);
+        var img = rt.gameObject.AddComponent<Image>();
+        img.color = CubeTheme.Inset;
+        img.raycastTarget = true;
+        var btn = rt.gameObject.AddComponent<UnityEngine.UI.Button>();
+        btn.targetGraphic = img;
+        btn.transition = Selectable.Transition.None;
+        text = Text("Text", rt, Vector2.zero, Vector2.one, size, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        text.rectTransform.offsetMin = new Vector2(16f, 0f);
+        text.rectTransform.offsetMax = new Vector2(-8f, 0f);
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        return img;
+    }
+
     static RectTransform Page(string name, RectTransform content, bool active)
     {
         var r = Rect("Page_" + name, content, Vector2.zero, Vector2.one);
@@ -128,6 +214,12 @@ public static class PanelBuilder
         var b = Button(label, page, Row(row), Row(row, true), 36, color ?? CubeTheme.Button);
         if (close) UnityEventTools.AddPersistentListener(b.onClick, mc.Close);
         else UnityEventTools.AddStringPersistentListener(b.onClick, mc.ShowPage, target);
+    }
+
+    static void Nav(RectTransform page, MenuController mc, string label, string target, int size, Vector2 aMin, Vector2 aMax)
+    {
+        var b = Button(label, page, aMin, aMax, size, CubeTheme.Button);
+        UnityEventTools.AddStringPersistentListener(b.onClick, mc.ShowPage, target);
     }
 
     static void BackButton(RectTransform page, MenuController mc)

@@ -72,11 +72,32 @@ public class PanelGrabber : MonoBehaviour
         return h;
     }
 
-    void OnEnable() { foreach (var h in new[] { left, right }) { h.aimPos.Enable(); h.aimRot.Enable(); h.devPos.Enable(); h.devRot.Enable(); h.grip.Enable(); h.stick.Enable(); h.axis.Enable(); } }
-    void OnDisable() { PanelLocomotionLock.Tick(false, false, S.disableTeleport); foreach (var h in new[] { left, right }) { h.aimPos.Disable(); h.aimRot.Disable(); h.devPos.Disable(); h.devRot.Disable(); h.grip.Disable(); h.stick.Disable(); h.axis.Disable(); } }
+    void OnEnable()
+    {
+        PanelManager.RigMoved += OnRigMoved;
+        Application.onBeforeRender += PanelManager.SyncRig;      // last look before drawing, after everything has moved the rig
+        foreach (var h in new[] { left, right }) { h.aimPos.Enable(); h.aimRot.Enable(); h.devPos.Enable(); h.devRot.Enable(); h.grip.Enable(); h.stick.Enable(); h.axis.Enable(); }
+    }
+    void OnDisable() { PanelManager.RigMoved -= OnRigMoved; Application.onBeforeRender -= PanelManager.SyncRig; PanelLocomotionLock.Tick(false, false, S.disableTeleport); foreach (var h in new[] { left, right }) { h.aimPos.Disable(); h.aimRot.Disable(); h.devPos.Disable(); h.devRot.Disable(); h.grip.Disable(); h.stick.Disable(); h.axis.Disable(); } }
+
+    // The rig moved (space view): move every point the grabber remembers by the same amount, so a panel you are holding
+    // doesn't think your hand moved, and "raise your hand to break free" isn't triggered by the rig's own motion.
+    void OnRigMoved(Matrix4x4 d)
+    {
+        Quaternion dr = d.rotation;
+        foreach (var h in new[] { left, right })
+        {
+            h.startHand = d.MultiplyPoint3x4(h.startHand);
+            h.startPanel = d.MultiplyPoint3x4(h.startPanel);
+            h.startDirFlat = dr * h.startDirFlat;
+            h.freeWr0 = dr * h.freeWr0;
+            h.baseRot = dr * h.baseRot;
+        }
+    }
 
     void Update()
     {
+        PanelManager.SyncRig();
         var cam = PanelManager.Head;
         if (cam == null) return;
         if (xr == null && Time.unscaledTime > nextFind) { xr = FindAnyObjectByType<XROrigin>(); nextFind = Time.unscaledTime + 1f; }
@@ -189,7 +210,8 @@ public class PanelGrabber : MonoBehaviour
         if (squareToPointer)
         {
             Vector3 dir = handRot * Vector3.forward;                       // readable side faces the controller
-            Vector3 up = Mathf.Abs(Vector3.Dot(dir, Vector3.up)) > 0.98f ? Vector3.forward : Vector3.up;
+            Vector3 rigUp = PanelManager.Up;
+            Vector3 up = Mathf.Abs(Vector3.Dot(dir, rigUp)) > 0.98f ? Vector3.ProjectOnPlane(Vector3.forward, rigUp).normalized : rigUp;
             h.baseRot = Quaternion.LookRotation(dir, up);
         }
         else h.baseRot = panel.rotation;
@@ -214,9 +236,10 @@ public class PanelGrabber : MonoBehaviour
 
     static Vector3 FlatDir(Quaternion rot)
     {
-        Vector3 d = rot * Vector3.forward;
-        d.y = 0f;
-        return d.sqrMagnitude < 0.0001f ? Vector3.forward : d.normalized;
+        Vector3 up = PanelManager.Up;
+        Vector3 d = Vector3.ProjectOnPlane(rot * Vector3.forward, up);
+        if (d.sqrMagnitude < 0.0001f) d = Vector3.ProjectOnPlane(Vector3.forward, up);
+        return d.normalized;
     }
 
     // Panel's readable side points away from the viewer, level with the floor.
@@ -257,7 +280,8 @@ public class PanelGrabber : MonoBehaviour
         }
 
         // Only raising or lowering the hand frees the panel's height and tilt.
-        if (!h.free && Mathf.Abs(wp.y - h.startHand.y) > S.breakFreeDistance)
+        Vector3 rigUp2 = PanelManager.Up;
+        if (!h.free && Mathf.Abs(Vector3.Dot(wp - h.startHand, rigUp2)) > S.breakFreeDistance)
             EnterFree(h, p, wr, head, true);
 
         Vector3 tip = wp + (wr * Vector3.forward) * dist();      // the spot you are holding goes here
@@ -278,14 +302,16 @@ public class PanelGrabber : MonoBehaviour
         // Track: the held spot follows your pointer anywhere on the floor plane; the height stays where it was.
         Quaternion face = FaceFrom(p.position, wp, head.forward);
         Vector3 off = face * Vector3.Scale(h.grabLocal, p.lossyScale);
-        Vector3 target = new Vector3(tip.x - off.x, h.startPanel.y, tip.z - off.z);
+        // the height along the rig's up stays where it was; everything else follows the pointer
+        Vector3 want = tip - off;
+        Vector3 target = want - rigUp2 * Vector3.Dot(want, rigUp2) + rigUp2 * Vector3.Dot(h.startPanel, rigUp2);
 
-        Vector3 toPanel = target - head.position;
-        toPanel.y = 0f;
+        Vector3 toPanel = Vector3.ProjectOnPlane(target - head.position, rigUp2);
         if (toPanel.magnitude < S.minDistanceFromHead)
         {
-            Vector3 dir = toPanel.sqrMagnitude < 0.0001f ? head.forward : toPanel.normalized;
-            target = new Vector3(head.position.x, target.y, head.position.z) + dir * S.minDistanceFromHead;
+            Vector3 dir = toPanel.sqrMagnitude < 0.0001f ? Vector3.ProjectOnPlane(head.forward, rigUp2).normalized : toPanel.normalized;
+            Vector3 headLevel = head.position - rigUp2 * Vector3.Dot(head.position, rigUp2) + rigUp2 * Vector3.Dot(target, rigUp2);
+            target = headLevel + dir * S.minDistanceFromHead;
         }
 
         p.position = Vector3.Lerp(p.position, target, snap);

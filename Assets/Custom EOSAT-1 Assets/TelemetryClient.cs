@@ -103,6 +103,7 @@ public class TelemetryClient : MonoBehaviour
     [SerializeField] bool useSavedHost = true;
 
     const string SavedHostKey = "telemetry.host";
+    const string SavedPortKey = "telemetry.port";
 
     [Header("Reading")]
     [Tooltip("Parse EVERY line that arrives (needed for the parse test). Untick to keep only the newest and skip the rest.")]
@@ -199,6 +200,8 @@ public class TelemetryClient : MonoBehaviour
     {
         if (useSavedHost && PlayerPrefs.HasKey(SavedHostKey))
             host = PlayerPrefs.GetString(SavedHostKey, host);
+        if (useSavedHost && PlayerPrefs.HasKey(SavedPortKey))
+            port = PlayerPrefs.GetInt(SavedPortKey, port);
     }
 
     void OnEnable() => StartWorker();
@@ -216,6 +219,7 @@ public class TelemetryClient : MonoBehaviour
         if (save)
         {
             PlayerPrefs.SetString(SavedHostKey, newHost);
+            PlayerPrefs.SetInt(SavedPortKey, newPort);
             PlayerPrefs.Save();
         }
         lastError = "";

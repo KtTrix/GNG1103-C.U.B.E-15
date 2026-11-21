@@ -41,9 +41,120 @@ public static class PanelManager
     {
         get
         {
-            var xr = UnityEngine.Object.FindAnyObjectByType<XROrigin>();
+            var xr = Rig;
             return xr != null && xr.Origin != null ? xr.Origin.transform.up : Vector3.up;
         }
+    }
+
+    static XROrigin rigCache;
+    static XROrigin Rig
+    {
+        get
+        {
+            if (rigCache == null) rigCache = UnityEngine.Object.FindAnyObjectByType<XROrigin>();
+            return rigCache;
+        }
+    }
+
+    // ── carrying panels with the rig ──────────────────────────────────────────
+    // In the space view the rig is moved every frame to follow the satellite. Panels live in the world, so without this
+    // they would be left behind. While FollowRig is on (ViewManager sets it for the space view) every panel moves with
+    // the rig, keeping its place relative to you. In the hub it is off: walking around leaves panels where they are.
+    public static bool FollowRig { get; set; }
+
+    /// <summary>Raised when panels were carried along; the grabber moves its own remembered points by the same amount.</summary>
+    public static event Action<Matrix4x4> RigMoved;
+
+    static Matrix4x4 lastRig;
+    static bool haveRig;
+
+    /// <summary>Record the rig's current pose without carrying anything (used after panels were placed by hand).</summary>
+    public static void MarkRig()
+    {
+        var xr = Rig;
+        if (xr == null || xr.Origin == null) return;
+        Transform t = xr.Origin.transform;
+        lastRig = Matrix4x4.TRS(t.position, t.rotation, Vector3.one);
+        haveRig = true;
+    }
+
+    // ── a separate set of open panels for each view (hub, space) ───────────────
+    // Leaving a view closes its panels and remembers which were open and where. Coming back puts them back exactly.
+    // The menu is not part of any view: it stays open and comes with you.
+    class Snap { public bool active, unlocked; public Vector3 pos, lpos; public Quaternion rot, lrot; }
+    static readonly Dictionary<string, Dictionary<GrabbablePanel, Snap>> viewSnaps = new Dictionary<string, Dictionary<GrabbablePanel, Snap>>();
+
+    static bool PerView(GrabbablePanel p) => p != null && p.PanelId != "menu";
+
+    /// <summary>Remember this view's panels (open or not, and where) and close them. Space panels are remembered relative to the rig.</summary>
+    public static void StoreView(string view)
+    {
+        Refresh();
+        Transform rt = Rig != null && Rig.Origin != null ? Rig.Origin.transform : null;
+        var d = new Dictionary<GrabbablePanel, Snap>();
+        foreach (var p in new List<GrabbablePanel>(panels))
+        {
+            if (!PerView(p)) continue;
+            Transform t = p.transform;
+            var s = new Snap { active = p.gameObject.activeSelf, unlocked = p.Unlocked, pos = t.position, rot = t.rotation };
+            if (rt != null) { s.lpos = rt.InverseTransformPoint(t.position); s.lrot = Quaternion.Inverse(rt.rotation) * t.rotation; }
+            d[p] = s;
+            p.gameObject.SetActive(false);
+        }
+        viewSnaps[view] = d;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Bring back the panels this view had open. A view that never had any starts with none. localToRig = true for space.</summary>
+    public static void RestoreView(string view, bool localToRig)
+    {
+        Refresh();
+        Transform rt = Rig != null && Rig.Origin != null ? Rig.Origin.transform : null;
+        viewSnaps.TryGetValue(view, out var d);
+        foreach (var p in new List<GrabbablePanel>(panels))
+        {
+            if (!PerView(p)) continue;
+            if (d != null && d.TryGetValue(p, out Snap s))
+            {
+                if (localToRig && rt != null) p.transform.SetPositionAndRotation(rt.TransformPoint(s.lpos), rt.rotation * s.lrot);
+                else p.transform.SetPositionAndRotation(s.pos, s.rot);
+                p.Unlocked = s.unlocked;
+                p.gameObject.SetActive(s.active);
+            }
+            else p.gameObject.SetActive(false);
+        }
+        MarkRig();                      // we placed them ourselves, so don't carry them again
+        Physics.SyncTransforms();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Notice how far the rig moved since the last call and carry the panels by that much. Cheap; called often.</summary>
+    public static void SyncRig()
+    {
+        var xr = Rig;
+        if (xr == null || xr.Origin == null) return;
+        Transform t = xr.Origin.transform;
+        Matrix4x4 now = Matrix4x4.TRS(t.position, t.rotation, Vector3.one);
+
+        if (haveRig && FollowRig)
+        {
+            Matrix4x4 d = now * lastRig.inverse;
+            Quaternion dr = d.rotation;
+            Vector3 dp = d.GetColumn(3);
+            if (dp.sqrMagnitude > 1e-12f || Quaternion.Angle(dr, Quaternion.identity) > 0.0005f)
+            {
+                foreach (var p in panels)
+                {
+                    if (p == null) continue;
+                    Transform pt = p.transform;
+                    pt.SetPositionAndRotation(d.MultiplyPoint3x4(pt.position), dr * pt.rotation);
+                }
+                RigMoved?.Invoke(d);
+                Physics.SyncTransforms();      // so the grab rays see the panels where they now are
+            }
+        }
+        lastRig = now;
+        haveRig = true;
     }
 
     /// <summary>Wait until the headset is tracking (a real head height that has stopped jumping), up to 10 s.</summary>

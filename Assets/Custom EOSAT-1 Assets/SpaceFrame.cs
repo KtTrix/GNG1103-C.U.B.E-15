@@ -170,6 +170,9 @@ public class SpaceFrame : MonoBehaviour
     [SerializeField] bool smoothBetweenFrames = true;
     [Tooltip("Never carry forward longer than this (real seconds), e.g. if the stub pauses.")]
     [SerializeField] float maxExtrapolateSeconds = 0.5f;
+    [Tooltip("The carried-forward motion is eased toward the true value over about this many seconds, so uneven packet " +
+             "timing never shows as steps. Higher = smoother but trails the data a little. 0 = off.")]
+    [SerializeField] float smoothingSeconds = 0.35f;
 
     /// <summary>One remembered position: ECI km as the stub sent it, the Earth's turn, and when/eclipse.</summary>
     public struct TrailSample { public Vector3 Eci; public float GmstDeg; public double SimSeconds; public bool Eclipse; }
@@ -190,6 +193,7 @@ public class SpaceFrame : MonoBehaviour
     Vector3 rawPos, rawVel; Quaternion rawRot = Quaternion.identity, prevRot = Quaternion.identity;
     double rawGmst; DateTime rawUtc, prevUtc; float rawReal, prevReal; bool havePrev;
     double simPerFrame = 0, frameInterval = 0.1;
+    double smoothAdv;      // simulation seconds the display is ahead of the last real frame (eased, so it never steps)
 
     void Start()
     {
@@ -205,6 +209,7 @@ public class SpaceFrame : MonoBehaviour
             if (Compute(f, earthRotationOffsetDeg, State))
             {
                 NoteRawFrame();
+                if (smoothBetweenFrames && State.HasSatellite) Extrapolate();    // continue from where the display was
                 Updated?.Invoke(State);
             }
             RecordHistory(f);
@@ -236,6 +241,9 @@ public class SpaceFrame : MonoBehaviour
             double dSim = (State.UtcTime - rawUtc).TotalSeconds;
             if (dReal > 0.0005 && dReal < 2.0) frameInterval = Mathf.Lerp((float)frameInterval, (float)dReal, 0.1f);
             if (dSim >= 0 && dSim < 3600) simPerFrame = simPerFrame <= 0 ? dSim : simPerFrame + (dSim - simPerFrame) * 0.1;
+            // The new frame becomes the reference, so what is displayed (old reference + smoothAdv) must stay put:
+            // take the time the reference just moved on by off smoothAdv. That keeps the picture continuous.
+            if (dSim >= 0 && dSim < 3600) smoothAdv -= dSim; else smoothAdv = 0;
         }
         havePrev = true;
         rawPos = State.SatPosKm; rawVel = State.SatVelKmS; rawRot = State.SatRotation;
@@ -247,8 +255,18 @@ public class SpaceFrame : MonoBehaviour
     {
         var s = State;
         float elapsed = Mathf.Min(Time.unscaledTime - rawReal, maxExtrapolateSeconds);
-        if (elapsed <= 0f || frameInterval <= 0.0005) return;
-        double simAdv = simPerFrame / frameInterval * elapsed;      // simulation seconds since the last frame
+        if (frameInterval <= 0.0005) return;
+        double rate = simPerFrame / frameInterval;                  // simulation seconds per real second
+        double target = rate * elapsed;                             // where the clock would be by the real time alone
+
+        // Keep turning at the measured rate, and ease toward the target. The target jumps whenever a packet arrives
+        // late or early; the easing turns those jumps into a smooth, continuous motion.
+        float dt = Time.unscaledDeltaTime;
+        smoothAdv += rate * dt;
+        if (smoothingSeconds > 0f) smoothAdv += (target - smoothAdv) * (1.0 - Math.Exp(-dt / smoothingSeconds));
+        else smoothAdv = target;
+        if (Math.Abs(smoothAdv - target) > Math.Max(rate * 1.0, 1.0)) smoothAdv = target;   // a real jump (reload, pause): follow it at once
+        double simAdv = smoothAdv;
 
         // position: turn about the orbit's axis, so a fast stub speed follows the curve instead of a chord
         float r = rawPos.magnitude;
@@ -262,7 +280,7 @@ public class SpaceFrame : MonoBehaviour
         }
 
         // attitude: keep turning at the rate seen between the last two frames
-        float t = 1f + (float)(elapsed / frameInterval);
+        float t = 1f + (simPerFrame > 1e-9 ? (float)(simAdv / simPerFrame) : (float)(elapsed / frameInterval));
         s.SatRotation = Quaternion.SlerpUnclamped(prevRot, rawRot, t);
 
         s.GmstDeg = rawGmst + 0.00417807462 * simAdv;

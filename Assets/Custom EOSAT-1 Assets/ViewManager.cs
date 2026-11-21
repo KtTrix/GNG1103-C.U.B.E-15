@@ -111,6 +111,7 @@ public class ViewManager : MonoBehaviour
     IEnumerator GoSpace()
     {
         busy = true;
+        PanelManager.StoreView("Hub");      // the hub's panels are put away; they come back when you return
         SaveRigAndFreeze();      // before the space scene exists, so nothing moves the rig first
 
         var op = SceneManager.LoadSceneAsync(spaceSceneName, LoadSceneMode.Additive);
@@ -119,6 +120,7 @@ public class ViewManager : MonoBehaviour
             Debug.LogError("[ViewManager] Could not load scene '" + spaceSceneName +
                            "'. Is it in File > Build Profiles > Scene List, spelled exactly like that?");
             RestoreRigAndUnfreeze();
+            PanelManager.RestoreView("Hub", false);
             busy = false;
             yield break;
         }
@@ -129,6 +131,7 @@ public class ViewManager : MonoBehaviour
         if (hubContent != null) hubContent.SetActive(false);
         PlaceWorld();
 
+        PanelManager.RestoreView("Space", true);     // whatever you had open in space last time (nothing, the first time)
         Current = View.Space;
         ViewChanged?.Invoke(Current);
         Debug.Log("[ViewManager] view = Space");
@@ -138,6 +141,7 @@ public class ViewManager : MonoBehaviour
     IEnumerator GoHub()
     {
         busy = true;
+        PanelManager.StoreView("Space");    // space's panels are put away, relative to the rig
         if (hubContent != null) hubContent.SetActive(true);
         SceneManager.SetActiveScene(hubScene);
 
@@ -145,6 +149,7 @@ public class ViewManager : MonoBehaviour
             yield return SceneManager.UnloadSceneAsync(spaceScene);
 
         RestoreRigAndUnfreeze();
+        PanelManager.RestoreView("Hub", false);      // the hub's panels, exactly where you left them
 
         Current = View.Hub;
         ViewChanged?.Invoke(Current);
@@ -184,6 +189,10 @@ public class ViewManager : MonoBehaviour
         savedRigPosition = rig.Origin.transform.position;
         savedRigRotation = rig.Origin.transform.rotation;
 
+        // From here until we are back in the hub, panels travel with the rig (see PanelManager.SyncRig).
+        PanelManager.SyncRig();
+        PanelManager.FollowRig = true;
+
         disabledProviders.Clear();
         foreach (var mb in rig.GetComponentsInChildren<MonoBehaviour>(true))
         {
@@ -209,6 +218,8 @@ public class ViewManager : MonoBehaviour
 
         if (rig != null)
             rig.Origin.transform.SetPositionAndRotation(savedRigPosition, savedRigRotation);
+        PanelManager.SyncRig();                  // carry the panels back with the rig
+        PanelManager.FollowRig = false;          // in the hub, panels stay where they are when you walk
 
         if (rigBody != null) { rigBody.enabled = true; rigBody = null; }     // after the rig is back in place
     }
