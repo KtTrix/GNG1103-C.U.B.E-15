@@ -29,6 +29,9 @@ public class TelemetryStatsPanel : MonoBehaviour
     [SerializeField] Color okColor = new Color(0.37f, 0.88f, 0.54f);
     [SerializeField] Color badColor = new Color(1.00f, 0.36f, 0.36f);
 
+    [Tooltip("Take colours from CubeTheme (the client's console look) instead of the values below.")]
+    [SerializeField] bool useTheme = true;
+
     TMP_Text leftText, rightText, noteText, testLabel;
     readonly StringBuilder sb = new StringBuilder(512);
     float nextRefresh;
@@ -38,6 +41,11 @@ public class TelemetryStatsPanel : MonoBehaviour
     void Start()
     {
         if (container == null) container = GetComponent<RectTransform>();
+        if (useTheme)
+        {
+            labelColor = CubeTheme.Dim; valueColor = CubeTheme.Text; keyColor = CubeTheme.Button;
+            okColor = CubeTheme.Ok; badColor = CubeTheme.Bad;
+        }
         if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
         labelHex = ColorUtility.ToHtmlStringRGB(labelColor);
         valueHex = ColorUtility.ToHtmlStringRGB(valueColor);

@@ -494,6 +494,8 @@ MonoBehaviour:
   closestZoomMultiplier: 0.05
   farthestZoomMultiplier: 5
   comfortableDistance: 0.5
+  maxWorldScale: 60
+  farClip: 5000
   overview:
     include: 1
     min: 6

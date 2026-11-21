@@ -151,7 +151,7 @@ public class ControllerModelSwitcher : MonoBehaviour
     // The template's floating instruction labels. They are separate objects ("Affordance Callouts Left/Right").
     void HideCallouts()
     {
-        foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Exclude))
             if (t != null && t.name.StartsWith("Affordance Callout") && t.gameObject.activeSelf)
                 t.gameObject.SetActive(false);
     }
@@ -161,13 +161,13 @@ public class ControllerModelSwitcher : MonoBehaviour
     {
         h.originals.Clear(); h.anchor = null;
         Transform root = null;
-        foreach (var mb in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (var mb in FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include))
         {
             if (mb == null || mb.GetType().Name != "ControllerAnimator") continue;
             if (HandOf(mb.transform) == h.word) { root = mb.transform; break; }
         }
         if (root == null)
-            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (var t in FindObjectsByType<Transform>(FindObjectsInactive.Include))
                 if (t.name.Contains("UniversalController") && HandOf(t) == h.word) { root = t; break; }
         if (root == null || root.parent == null) return;
 

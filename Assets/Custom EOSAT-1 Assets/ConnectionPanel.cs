@@ -37,6 +37,9 @@ public class ConnectionPanel : MonoBehaviour
     [SerializeField] Color warnColor = new Color(0.91f, 0.64f, 0.24f);
     [SerializeField] Color badColor = new Color(1.00f, 0.36f, 0.36f);
 
+    [Tooltip("Take colours from CubeTheme (the client's console look) instead of the values below.")]
+    [SerializeField] bool useTheme = true;
+
     const int MaxLength = 15;   // "255.255.255.255"
 
     TMP_Text statusText, ipText, hintText;
@@ -47,6 +50,11 @@ public class ConnectionPanel : MonoBehaviour
     void Start()
     {
         if (container == null) container = GetComponent<RectTransform>();
+        if (useTheme)
+        {
+            panelTextColor = CubeTheme.Text; dimTextColor = CubeTheme.Dim; keyColor = CubeTheme.Button;
+            accentColor = CubeTheme.ButtonAccent; okColor = CubeTheme.Ok; warnColor = CubeTheme.Warn; badColor = CubeTheme.Bad;
+        }
         if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
         if (telemetry != null) typed = telemetry.Host;
 
@@ -166,7 +174,7 @@ public class ConnectionPanel : MonoBehaviour
         // IP box
         var ipBox = MakeRect("IP Box", new Vector2(0.03f, 0.62f), new Vector2(0.60f, 0.78f));
         var ipBg = ipBox.gameObject.AddComponent<Image>();
-        ipBg.color = new Color(0.06f, 0.09f, 0.13f, 1f);
+        ipBg.color = useTheme ? CubeTheme.Inset : new Color(0.06f, 0.09f, 0.13f, 1f);
         ipBg.raycastTarget = false;
         ipText = MakeText("IP Text", Vector2.zero, Vector2.one, ipFontSize,
                           TextAlignmentOptions.MidlineLeft, panelTextColor, ipBox);

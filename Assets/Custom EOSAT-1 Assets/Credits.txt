@@ -1,0 +1,9 @@
+<b>EOSAT-1 VR SIMULATOR</b>
+Team C.U.B.E-15 - GNG1103, University of Ottawa
+
+<b>Team</b>
+(add names and roles here)
+
+<b>Credits</b>
+Earth, Moon and Sun textures: Solar System Scope (CC BY 4.0)
+Quest controller models: WebXR Input Profiles (MIT, Copyright (c) 2019 Amazon)
