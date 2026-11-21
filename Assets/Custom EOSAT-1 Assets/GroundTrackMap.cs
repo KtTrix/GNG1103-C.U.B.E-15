@@ -73,6 +73,53 @@ public class GroundTrackMap : MonoBehaviour
         if (trackLine != null) trackLine.SetPoints(points);
         if (marker != null) marker.gameObject.SetActive(false);   // hidden until the first frame arrives
         if (showStations) BuildStations();
+        started = true;
+    }
+
+    SpaceFrame spaceFrame;
+
+    // The hub (and this map) is switched off while you are in the space view. SpaceFrame kept the path flown
+    // meanwhile, so redraw the track from it: the line carries on without gaps or straight jumps.
+    void OnEnable()
+    {
+        lastFrameCount = -1;
+        if (points.Count > 0 || started) RebuildFromHistory();
+    }
+
+    bool started;
+
+    void RebuildFromHistory()
+    {
+        if (spaceFrame == null) spaceFrame = FindAnyObjectByType<SpaceFrame>();
+        if (spaceFrame == null || spaceFrame.History.Count < 2) return;
+
+        points.Clear();
+        var h = spaceFrame.History;
+        double newest = h[h.Count - 1].SimSeconds;
+        double keepSeconds = orbitPeriodSeconds * orbitsToKeep;
+        double lastT = double.NegativeInfinity;
+        float prevLon = 0f;
+
+        for (int i = 0; i < h.Count; i++)
+        {
+            var s = h[i];
+            if (newest - s.SimSeconds > keepSeconds) continue;
+            if (s.SimSeconds - lastT < sampleEverySimSeconds && points.Count > 0) continue;
+
+            double x = s.Eci.x, y = s.Eci.y, z = s.Eci.z;
+            float lat = (float)(Math.Atan2(z, Math.Sqrt(x * x + y * y)) * 180.0 / Math.PI);
+            double lonD = Math.Atan2(y, x) * 180.0 / Math.PI - s.GmstDeg;
+            float lon = (float)(((lonD + 540.0) % 360.0) - 180.0);
+
+            bool brk = points.Count == 0 || Mathf.Abs(lon - prevLon) > 180f || s.SimSeconds - lastT > jumpBreakSeconds;
+            points.Add(new TrackPoint { pos = ToNormalised(lat, lon), eclipse = s.Eclipse, breakBefore = brk, time = s.SimSeconds });
+            lastT = s.SimSeconds;
+            prevLon = lon;
+        }
+        if (points.Count > maxPoints) points.RemoveRange(0, points.Count - maxPoints);
+        lastSampleTime = lastT;
+        lastSampleLon = prevLon;
+        if (trackLine != null) trackLine.Refresh();
     }
 
     void Update()

@@ -53,6 +53,22 @@ public class SatelliteMarker : MonoBehaviour
         rend = GetComponent<Renderer>();
     }
 
+    void OnEnable()
+    {
+        // The hub was switched off (for example while in the space view). Jump straight to where the
+        // satellite is now instead of sliding there across the globe, which looks like a straight-line jump.
+        snapNext = true;
+        lastFrameCount = -1;
+    }
+
+    /// <summary>Where a remembered position (ECI km plus the Earth's turn) sits in the globe's local space.</summary>
+    public Vector3 LocalFor(double eciX, double eciY, double eciZ, double gmstDeg)
+    {
+        double g = gmstDeg * Math.PI / 180.0;
+        double c = Math.Cos(g), s = Math.Sin(g);
+        return EcefToLocal(c * eciX + s * eciY, -s * eciX + c * eciY, eciZ, DefaultEarthRadiusKm);
+    }
+
     void Update()
     {
         if (useTestPosition)

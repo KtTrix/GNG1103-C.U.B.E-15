@@ -38,6 +38,28 @@ using UnityEngine;
 {
     public double[] dir_eci;         // unit vector from Earth towards the Sun, in ECI
     public bool in_eclipse;          // true = spacecraft is in Earth's shadow
+    public double sun_fraction;      // 1 = full sun, 0 = full shadow (partial near the edges)
+}
+
+[Serializable] public class WingData
+{
+    public string state;             // "STOWED", "DEPLOYING" or "DEPLOYED"
+    public double fraction;          // 0 = stowed, 1 = fully deployed
+}
+
+[Serializable] public class AntennaData
+{
+    public string state;             // "STOWED" or "DEPLOYED"
+    public bool deployed;
+    public string sensor;            // what the spacecraft itself reports
+}
+
+[Serializable] public class DeployData
+{
+    public WingData wing_py;         // wing on the +Y face
+    public WingData wing_my;         // wing on the -Y face
+    public double sada_angle_deg;    // IGNORED: the professor says the wing rotation data is a mistake
+    public AntennaData antenna;
 }
 
 [Serializable] public class MissionData
@@ -56,6 +78,7 @@ using UnityEngine;
     public AttitudeData attitude;
     public EarthData earth;
     public SunData sun;
+    public DeployData deploy;
     public MissionData mission;
     public double met_s;             // mission elapsed time in seconds (0 if the sender omits it)
     public double speed;             // simulated seconds per real second (the stub's --speed)
@@ -212,6 +235,24 @@ public class TelemetryClient : MonoBehaviour
         lastAppliedSeq = 0;
         lastAckedSeq = -1;
         CloseLagLog();
+    }
+
+    /// <summary>
+    /// The stub restarted (its seq numbers went back to the start). Zero the counters and the seq
+    /// bookkeeping, but keep frames already waiting in the queue: they belong to the new run.
+    /// </summary>
+    void StartNewRun(int firstSeq)
+    {
+        lock (gate)
+        {
+            Stats.Reset();
+            Stats.NoteSeqSeen(firstSeq);       // the frame being processed is the first one we count
+        }
+        lastSavedParsed = 0;
+        lastAppliedSeq = 0;
+        lastAckedSeq = -1;
+        CloseLagLog();
+        Debug.Log("[Telemetry] the stub restarted (frame numbers began again): counters reset");
     }
 
     /// <summary>Write the test report to a text file and return its full path.</summary>
@@ -466,6 +507,13 @@ public class TelemetryClient : MonoBehaviour
             if (frame == null) { Stats.ParseErrors++; lastLineGood = false; return; }
 
             if (frame.type != "state") { Stats.Ignored++; return; }   // e.g. the "hello" greeting
+
+            // The stub was restarted: its numbering began again from 1. Forget the old run, otherwise every
+            // new frame looks like a duplicate of one already seen and is thrown away until the new run
+            // catches up with the old one (the app then looks stale and "behind" by hundreds of frames).
+            if (frame.seq > 0 && lastAppliedSeq > 0 && frame.seq < lastAppliedSeq - 20)
+                StartNewRun(frame.seq);
+
             if (!Stats.RegisterSeq(frame.seq)) return;                 // the same frame sent twice
 
             // Which of the four fields came through intact?
