@@ -44,8 +44,42 @@ public class GrabbablePanel : MonoBehaviour
     [SerializeField] float handleThickness = 14f;
     [SerializeField] float handleGap = 14f;
 
-    [Tooltip("A pinned panel cannot be grabbed (so it can't be moved by accident).")]
-    public bool Pinned;
+    public enum AttachMode { World, Head, HandLeft, HandRight }
+
+    bool pinLoaded, pinned, attachLoaded;
+    AttachMode attach;
+
+    /// <summary>A pinned panel cannot be grabbed (so it can't be moved by accident). Remembered between runs.</summary>
+    public bool Pinned
+    {
+        get
+        {
+            if (!pinLoaded) { pinned = CubeSettings.GetBool("panel." + panelId + ".pin", false); pinLoaded = true; }
+            return pinned;
+        }
+        set
+        {
+            pinned = value; pinLoaded = true;
+            CubeSettings.SetBool("panel." + panelId + ".pin", value);
+            PanelManager.NotifyChanged();
+        }
+    }
+
+    /// <summary>World = stays where you put it, Head = lazy follow, HandLeft / HandRight = held at that controller. Remembered between runs.</summary>
+    public AttachMode Attach
+    {
+        get
+        {
+            if (!attachLoaded) { attach = (AttachMode)CubeSettings.GetInt("panel." + panelId + ".attach", 0); attachLoaded = true; }
+            return attach;
+        }
+        set
+        {
+            attach = value; attachLoaded = true;
+            CubeSettings.SetInt("panel." + panelId + ".attach", (int)value);
+            PanelManager.NotifyChanged();
+        }
+    }
 
     /// <summary>True once the player has pulled this panel out of its sliding track; later grabs then start free.</summary>
     public bool Unlocked;

@@ -76,7 +76,7 @@ public static class PanelBuilder
         BackButton(opt, mc);
 
         // placeholder pages, filled in later
-        foreach (var n in new[] { "Controls", "Panels", "Audio", "Accessibility" })
+        foreach (var n in new[] { "Audio", "Accessibility" })
         {
             var pg = Page(n, content, false);
             var t = Text("Heading", pg, new Vector2(0.08f, 0.55f), new Vector2(0.92f, 0.9f), 40, TextAlignmentOptions.Center, CubeTheme.Dim);
@@ -85,23 +85,17 @@ public static class PanelBuilder
         }
 
         SatellitePage(content, mc);
+        PanelsPageBuild(content, mc);
+        PanelFeelPage(content, mc);
+        ControlsPage(content, mc);
+        ButtonMapPageBuild(content, mc);
 
         // Page_ConnectionHelp
         var help = Page("ConnectionHelp", content, false);
         var ht = Text("Help Text", help, new Vector2(0.06f, 0.18f), new Vector2(0.94f, 0.97f), 26, TextAlignmentOptions.TopLeft, CubeTheme.Text);
         ht.enableAutoSizing = true; ht.fontSizeMin = 16; ht.fontSizeMax = 26;
         ht.overflowMode = TextOverflowModes.Truncate;
-        string dm = CubeTheme.HexString(CubeTheme.Dim);
-        ht.text =
-            "<b>OVER WI-FI</b>\n" +
-            "1. Put the PC and the headset on the same Wi-Fi.\n" +
-            "2. On the PC open Command Prompt and run <b>ipconfig</b>. Note the IPv4 Address of the Wi-Fi adapter.\n" +
-            "3. Type it on the Satellite Data page, keep port 8100, press <b>Connect</b>.\n" +
-            "<color=#" + dm + ">If it won't link, allow TCP 8100 and 8101 through Windows Firewall.</color>\n\n" +
-            "<b>OVER A USB CABLE</b>\n" +
-            "1. Plug the headset into the PC and accept USB debugging inside the headset.\n" +
-            "2. On the PC run: <b>adb reverse tcp:8100 tcp:8100</b>\n" +
-            "3. Press <b>USB Cable</b> on the Satellite Data page.";
+        ht.text = HelpText();
         BackButton(help, mc);
 
         // Page_Credits
@@ -129,10 +123,290 @@ public static class PanelBuilder
     }
 
 
+
+    // ── Panels page: one row per panel (show, attach, pin), reset, and a link to Panel feel ──
+    static void PanelsPageBuild(RectTransform content, MenuController mc)
+    {
+        var pg = Page("Panels", content, false);
+        var pp = pg.gameObject.AddComponent<PanelsPage>();
+
+        // column headings, aligned with the row template below
+        var hdr = Rect("Header", pg, new Vector2(0.04f, 0.87f), new Vector2(0.96f, 0.93f));
+        Heading(hdr, "PANEL", 0f, 0.28f, TextAlignmentOptions.MidlineLeft);
+        Heading(hdr, "SHOW", 0.30f, 0.46f, TextAlignmentOptions.Midline);
+        Heading(hdr, "ATTACH", 0.48f, 0.66f, TextAlignmentOptions.Midline);
+        Heading(hdr, "PIN", 0.68f, 0.83f, TextAlignmentOptions.Midline);
+        Heading(hdr, "RESET", 0.85f, 1f, TextAlignmentOptions.Midline);
+
+        var list = Rect("List", pg, new Vector2(0.04f, 0.27f), new Vector2(0.96f, 0.86f));
+
+        // the hidden example row (PanelsPage makes one copy per panel)
+        var row = Rect("Row Template", list, new Vector2(0f, 0.83f), new Vector2(1f, 1f));
+        var rn = Text("Name", row, new Vector2(0f, 0f), new Vector2(0.28f, 1f), 26, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        rn.text = "Panel name";
+        rn.enableAutoSizing = true; rn.fontSizeMin = 16; rn.fontSizeMax = 26;       // long names shrink instead of running into the buttons
+        Button("Show", row, new Vector2(0.30f, 0.08f), new Vector2(0.46f, 0.92f), 19, CubeTheme.Button);
+        Button("Attach", row, new Vector2(0.48f, 0.08f), new Vector2(0.66f, 0.92f), 19, CubeTheme.Button);
+        Button("Pin", row, new Vector2(0.68f, 0.08f), new Vector2(0.83f, 0.92f), 19, CubeTheme.Button);
+        Button("Reset", row, new Vector2(0.85f, 0.08f), new Vector2(1f, 0.92f), 19, CubeTheme.Button);
+        row.gameObject.SetActive(false);
+
+        var reset = Button("Reset all", pg, new Vector2(0.06f, 0.165f), new Vector2(0.47f, 0.255f), 24, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(reset.onClick, pp.ResetPanels);
+        Nav(pg, mc, "Panel feel", "PanelFeel", 24, new Vector2(0.53f, 0.165f), new Vector2(0.94f, 0.255f));
+
+        var so = new SerializedObject(pp);
+        so.FindProperty("listRoot").objectReferenceValue = list;
+        so.FindProperty("rowTemplate").objectReferenceValue = row.gameObject;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        BackButton(pg, mc);
+    }
+
+    static void Heading(RectTransform parent, string text, float x0, float x1, TextAlignmentOptions align)
+    {
+        var t = Text("H " + text, parent, new Vector2(x0, 0f), new Vector2(x1, 1f), 18, align, CubeTheme.Dim);
+        t.text = "<cspace=0.12em>" + text + "</cspace>";
+    }
+
+    // ── Button mapping page: scrolling list, tap then press a button, hold to unassign, Apply ──
+    static void ButtonMapPageBuild(RectTransform content, MenuController mc)
+    {
+        var pg = Page("ButtonMapping", content, false);
+        var bp = pg.gameObject.AddComponent<ButtonMapPage>();
+        var clear = new Color(0f, 0f, 0f, 0f);
+
+        var status = Text("Status", pg, new Vector2(0.04f, 0.895f), new Vector2(0.96f, 0.995f), 19, TextAlignmentOptions.TopLeft, CubeTheme.Warn);
+        status.text = "";
+
+        var hdr = Rect("Header", pg, new Vector2(0.04f, 0.835f), new Vector2(0.92f, 0.89f));
+        Heading(hdr, "ACTION", 0f, 0.44f, TextAlignmentOptions.MidlineLeft);
+        Heading(hdr, "BUTTON (HOLD TO CLEAR)", 0.44f, 0.80f, TextAlignmentOptions.Midline);
+        Heading(hdr, "RESET", 0.82f, 1f, TextAlignmentOptions.Midline);
+
+        // the scrolling list: drag it with the laser, or use the bar on the right
+        var view = Rect("Viewport", pg, new Vector2(0.04f, 0.27f), new Vector2(0.92f, 0.83f));
+        view.gameObject.AddComponent<Image>().color = clear;           // so dragging empty space scrolls too
+        view.gameObject.AddComponent<RectMask2D>();
+        var list = Rect("Content", view, new Vector2(0f, 1f), new Vector2(1f, 1f));
+        list.pivot = new Vector2(0.5f, 1f);
+        list.gameObject.AddComponent<Image>().color = clear;
+
+        var row = Rect("Row Template", list, new Vector2(0f, 1f), new Vector2(1f, 1f));
+        var rn = Text("Name", row, new Vector2(0f, 0f), new Vector2(0.44f, 1f), 24, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        rn.text = "Action";
+        rn.enableAutoSizing = true; rn.fontSizeMin = 16; rn.fontSizeMax = 24;
+        Button("Change", row, new Vector2(0.46f, 0.04f), new Vector2(0.80f, 0.96f), 20, CubeTheme.Button);
+        Button("Reset", row, new Vector2(0.82f, 0.04f), new Vector2(1f, 0.96f), 19, CubeTheme.Button);
+        row.gameObject.SetActive(false);
+
+        var bar = Rect("Scrollbar", pg, new Vector2(0.935f, 0.27f), new Vector2(0.96f, 0.83f));
+        bar.gameObject.AddComponent<Image>().color = CubeTheme.Inset;
+        var sb = bar.gameObject.AddComponent<Scrollbar>();
+        sb.direction = Scrollbar.Direction.BottomToTop;
+        var slide = Rect("Sliding Area", bar, Vector2.zero, Vector2.one);
+        var handle = Rect("Handle", slide, Vector2.zero, Vector2.one);
+        var handleImg = handle.gameObject.AddComponent<Image>();
+        handleImg.color = CubeTheme.Dim;
+        sb.handleRect = handle;
+        sb.targetGraphic = handleImg;
+
+        var sr = view.gameObject.AddComponent<ScrollRect>();
+        sr.content = list;
+        sr.viewport = view;
+        sr.horizontal = false; sr.vertical = true;
+        sr.movementType = ScrollRect.MovementType.Clamped;
+        sr.scrollSensitivity = 40f;
+        sr.verticalScrollbar = sb;
+        sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+
+        var apply = Button("Apply", pg, new Vector2(0.04f, 0.165f), new Vector2(0.48f, 0.245f), 26, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(apply.onClick, bp.Apply);
+        var rb = Button("Restore defaults", pg, new Vector2(0.52f, 0.165f), new Vector2(0.96f, 0.245f), 22, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(rb.onClick, bp.RestoreDefaults);
+
+        var so = new SerializedObject(bp);
+        so.FindProperty("listRoot").objectReferenceValue = list;
+        so.FindProperty("rowTemplate").objectReferenceValue = row.gameObject;
+        so.FindProperty("statusText").objectReferenceValue = status;
+        so.FindProperty("applyButton").objectReferenceValue = apply;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        BackButton(pg, mc);
+    }
+
+    // ── Controls page: turning, move speed, which button grabs panels ──
+    static void ControlsPage(RectTransform content, MenuController mc)
+    {
+        var pg = Page("Controls", content, false);
+        var act = pg.gameObject.AddComponent<SettingsActions>();
+
+        ChoiceRow(pg, "Turning", "controls.turnstyle", 0, new[] { "Snap", "Smooth" }, 0.98f);
+        CompactSlider(pg, "Snap turn angle", "controls.snapangle", 15f, 90f, 45f, 15f, "0", " deg", 0.83f);
+        CompactSlider(pg, "Smooth turn speed", "controls.smoothspeed", 30f, 180f, 60f, 5f, "0", " deg/s", 0.68f);
+        CompactSlider(pg, "Move speed", "controls.movespeed", 0.5f, 4f, 1.5f, 0.1f, "0.0", " m/s", 0.53f);
+        Nav(pg, mc, "Button mapping", "ButtonMapping", 26, new Vector2(0.1f, 0.265f), new Vector2(0.9f, 0.365f));
+
+        var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
+        foreach (var k in new[] { "controls.turnstyle", "controls.snapangle", "controls.smoothspeed", "controls.movespeed" })
+            UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, k);
+        UnityEventTools.AddPersistentListener(rb.onClick, act.ResetBindings);
+        BackButton(pg, mc);
+    }
+
+    static void ChoiceRow(RectTransform page, string label, string key, int def, string[] labels, float yTop)
+    {
+        var row = Rect("Setting " + label, page, new Vector2(0f, yTop - 0.14f), new Vector2(1f, yTop));
+        var l = Text("Label", row, new Vector2(0.06f, 0f), new Vector2(0.50f, 1f), 28, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        l.text = label;
+        var btn = Button(labels[0], row, new Vector2(0.52f, 0.1f), new Vector2(0.94f, 0.9f), 26, CubeTheme.Button);
+
+        var sc = row.gameObject.AddComponent<SettingChoice>();
+        var so = new SerializedObject(sc);
+        so.FindProperty("key").stringValue = key;
+        so.FindProperty("defaultValue").intValue = def;
+        var arr = so.FindProperty("labels");
+        arr.arraySize = labels.Length;
+        for (int i = 0; i < labels.Length; i++) arr.GetArrayElementAtIndex(i).stringValue = labels[i];
+        so.FindProperty("button").objectReferenceValue = btn;
+        so.FindProperty("labelText").objectReferenceValue = btn.GetComponentInChildren<TMP_Text>();
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // a slider row without a description line, so several fit on one page
+    static void CompactSlider(RectTransform page, string label, string key, float min, float max, float def, float step,
+                              string format, string suffix, float yTop)
+    {
+        var row = Rect("Setting " + label, page, new Vector2(0f, yTop - 0.14f), new Vector2(1f, yTop));
+        var l = Text("Label", row, new Vector2(0.06f, 0.55f), new Vector2(0.62f, 1f), 26, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        l.text = label;
+        var v = Text("Value", row, new Vector2(0.62f, 0.55f), new Vector2(0.94f, 1f), 26, TextAlignmentOptions.MidlineRight, CubeTheme.Accent);
+        v.text = "";
+        var slider = MakeSlider("Slider", row, new Vector2(0.06f, 0f), new Vector2(0.94f, 0.55f));
+
+        var ss = row.gameObject.AddComponent<SettingSlider>();
+        var so = new SerializedObject(ss);
+        so.FindProperty("key").stringValue = key;
+        so.FindProperty("defaultValue").floatValue = def;
+        so.FindProperty("min").floatValue = min;
+        so.FindProperty("max").floatValue = max;
+        so.FindProperty("step").floatValue = step;
+        so.FindProperty("displayScale").floatValue = 1f;
+        so.FindProperty("format").stringValue = format;
+        so.FindProperty("suffix").stringValue = suffix;
+        so.FindProperty("slider").objectReferenceValue = slider;
+        so.FindProperty("valueText").objectReferenceValue = v;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // ── Panel feel page: sliders ──
+    static void PanelFeelPage(RectTransform content, MenuController mc)
+    {
+        var pg = Page("PanelFeel", content, false);
+        var act = pg.gameObject.AddComponent<SettingsActions>();
+
+        SliderRow(pg, "Weight", "How heavy panels feel when you move them. Light follows your hand instantly.",
+                  "panel.weight", 0f, 1f, 0.5f, 1f, "0.00", "", 0.90f);
+        SliderRow(pg, "Break-free distance", "How far you raise or lower your hand before a panel comes off its floor track.",
+                  "panel.breakfree", 0.01f, 0.10f, 0.02f, 100f, "0.0", " cm", 0.62f);
+
+        var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.25f), new Vector2(0.9f, 0.36f), 28, CubeTheme.Button);
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "panel.weight");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "panel.breakfree");
+        BackButton(pg, mc);
+    }
+
+    static void SliderRow(RectTransform page, string label, string description, string key,
+                          float min, float max, float def, float displayScale, string format, string suffix, float yTop)
+    {
+        var row = Rect("Setting " + label, page, new Vector2(0f, yTop - 0.28f), new Vector2(1f, yTop));
+        var l = Text("Label", row, new Vector2(0.06f, 0.78f), new Vector2(0.62f, 1f), 28, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        l.text = label;
+        var v = Text("Value", row, new Vector2(0.62f, 0.78f), new Vector2(0.94f, 1f), 28, TextAlignmentOptions.MidlineRight, CubeTheme.Accent);
+        v.text = "";
+        var slider = MakeSlider("Slider", row, new Vector2(0.06f, 0.36f), new Vector2(0.94f, 0.74f));
+        var d = Text("Description", row, new Vector2(0.06f, 0f), new Vector2(0.94f, 0.32f), 20, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        d.text = description;
+
+        var ss = row.gameObject.AddComponent<SettingSlider>();
+        var so = new SerializedObject(ss);
+        so.FindProperty("key").stringValue = key;
+        so.FindProperty("defaultValue").floatValue = def;
+        so.FindProperty("min").floatValue = min;
+        so.FindProperty("max").floatValue = max;
+        so.FindProperty("displayScale").floatValue = displayScale;
+        so.FindProperty("format").stringValue = format;
+        so.FindProperty("suffix").stringValue = suffix;
+        so.FindProperty("slider").objectReferenceValue = slider;
+        so.FindProperty("valueText").objectReferenceValue = v;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // a slider made of ordinary objects: a thin track, a fill, and a big round-ish handle (the whole row is the hit area)
+    static Slider MakeSlider(string name, Transform parent, Vector2 aMin, Vector2 aMax)
+    {
+        var root = Rect(name, parent, aMin, aMax);
+        var hit = root.gameObject.AddComponent<Image>();
+        hit.color = new Color(0f, 0f, 0f, 0f);
+        hit.raycastTarget = true;                                    // so the pointer can grab it anywhere along the row
+
+        var track = Rect("Track", root, new Vector2(0f, 0.42f), new Vector2(1f, 0.58f));
+        track.offsetMin = new Vector2(14f, 0f); track.offsetMax = new Vector2(-14f, 0f);
+        var ti = track.gameObject.AddComponent<Image>();
+        ti.color = CubeTheme.Inset; ti.raycastTarget = false;
+
+        var fillArea = Rect("Fill Area", root, new Vector2(0f, 0.42f), new Vector2(1f, 0.58f));
+        fillArea.offsetMin = new Vector2(14f, 0f); fillArea.offsetMax = new Vector2(-14f, 0f);
+        var fill = Rect("Fill", fillArea, Vector2.zero, Vector2.one);
+        var fi = fill.gameObject.AddComponent<Image>();
+        fi.color = CubeTheme.ButtonAccent; fi.raycastTarget = false;
+
+        var area = Rect("Handle Slide Area", root, Vector2.zero, Vector2.one);
+        area.offsetMin = new Vector2(30f, 0f); area.offsetMax = new Vector2(-30f, 0f);
+        var handle = Rect("Handle", area, new Vector2(0f, 0.1f), new Vector2(0f, 0.9f));
+        handle.sizeDelta = new Vector2(44f, 0f);
+        var hi = handle.gameObject.AddComponent<Image>();
+        hi.color = CubeTheme.Text; hi.raycastTarget = true;
+
+        var slider = root.gameObject.AddComponent<Slider>();
+        slider.fillRect = fill;
+        slider.handleRect = handle;
+        slider.targetGraphic = hi;
+        slider.direction = Slider.Direction.LeftToRight;
+        var cb = slider.colors;
+        cb.normalColor = CubeTheme.Text;
+        cb.highlightedColor = CubeTheme.Accent;
+        cb.pressedColor = CubeTheme.Accent;
+        cb.selectedColor = CubeTheme.Text;
+        slider.colors = cb;
+        return slider;
+    }
+
     // ── Satellite Data page: link status, IP + port, keypad ──────────────────
+    static string HelpText()
+    {
+        string dm = CubeTheme.HexString(CubeTheme.Dim);
+        return
+            "<b>OVER WI-FI</b>\n" +
+            "1. Put the PC and the headset on the same Wi-Fi.\n" +
+            "2. On the PC open Command Prompt and run <b>ipconfig</b>. Note the IPv4 Address of the Wi-Fi adapter.\n" +
+            "3. Type it on the Satellite Data page, keep port 8100, press <b>Connect</b>.\n" +
+            "<color=#" + dm + ">If it won't link, allow TCP 8100 and 8101 through Windows Firewall.</color>\n\n" +
+            "<b>OVER A USB CABLE</b>\n" +
+            "1. Plug the headset into the PC and accept USB debugging inside the headset.\n" +
+            "2. On the PC run: <b>adb reverse tcp:8100 tcp:8100</b>\n" +
+            "3. Press <b>USB Cable</b> on the Satellite Data page.";
+    }
+
     static void SatellitePage(RectTransform content, MenuController mc)
     {
         var pg = Page("SatelliteData", content, false);
+        SatelliteBody(pg, mc, false);
+        BackButton(pg, mc);
+    }
+
+    // The satellite data controls (status, IP + port, keypad, buttons). The menu page and the stand-alone panel share them.
+    // In the menu, Instructions opens its own page; in a panel it covers the keypad with the instructions instead.
+    static SatelliteDataPage SatelliteBody(RectTransform pg, MenuController mc, bool asPanel)
+    {
         var sp = pg.gameObject.AddComponent<SatelliteDataPage>();
         var so = new SerializedObject(sp);
 
@@ -170,10 +444,31 @@ public static class PanelBuilder
         var clr = Button("Clear", pg, new Vector2(0.65f, 0.318f), new Vector2(0.96f, 0.432f), 30, CubeTheme.Button);
         UnityEventTools.AddPersistentListener(clr.onClick, sp.Clear);
 
-        Nav(pg, mc, "Instructions", "ConnectionHelp", 22, new Vector2(0.65f, 0.188f), new Vector2(0.96f, 0.302f));
+        if (!asPanel)
+        {
+            Nav(pg, mc, "Instructions", "ConnectionHelp", 22, new Vector2(0.65f, 0.188f), new Vector2(0.96f, 0.302f));
+        }
+        else
+        {
+            var ins = Button("Instructions", pg, new Vector2(0.65f, 0.188f), new Vector2(0.96f, 0.302f), 22, CubeTheme.Button);
+            UnityEventTools.AddPersistentListener(ins.onClick, sp.ToggleHelp);
+
+            // the instructions, drawn over the keypad until closed
+            var ov = Rect("Help Overlay", pg, new Vector2(0f, 0.165f), new Vector2(1f, 1f));
+            var oi = ov.gameObject.AddComponent<Image>();
+            oi.color = CubeTheme.Panel; oi.raycastTarget = true;
+            var ot = Text("Help Text", ov, new Vector2(0.06f, 0.14f), new Vector2(0.94f, 0.97f), 26, TextAlignmentOptions.TopLeft, CubeTheme.Text);
+            ot.enableAutoSizing = true; ot.fontSizeMin = 16; ot.fontSizeMax = 26;
+            ot.overflowMode = TextOverflowModes.Truncate;
+            ot.text = HelpText();
+            var close = Button("Close", ov, new Vector2(0.1f, 0.02f), new Vector2(0.9f, 0.12f), 28, CubeTheme.Button);
+            UnityEventTools.AddPersistentListener(close.onClick, sp.ToggleHelp);
+            ov.gameObject.SetActive(false);
+            so.FindProperty("helpOverlay").objectReferenceValue = ov.gameObject;
+        }
 
         so.ApplyModifiedPropertiesWithoutUndo();
-        BackButton(pg, mc);
+        return sp;
     }
 
     // a text box that is also a button; the page script tints its Image to show which one is selected
@@ -246,6 +541,19 @@ public static class PanelBuilder
         return AssetDatabase.LoadAssetAtPath<TextAsset>(path);
     }
 
+
+    // ── the stand-alone Satellite Data panel (off by default; open it from Options > Panels) ──
+    [MenuItem("CUBE15/Panels/New Satellite Data Panel")]
+    static void SatellitePanel()
+    {
+        // 709 tall so the controls match the menu page: the menu page has a 15% strip for a Back button that a panel doesn't need
+        var root = Build("satdata", "Satellite Data", "TELEMETRY LINK", 760f, 709f, out RectTransform content, out GrabbablePanel gp);
+        var body = Rect("Body", content, Vector2.zero, Vector2.one);
+        body.offsetMin = new Vector2(0f, -131f);
+        SatelliteBody(body, null, true);
+        root.SetActive(false);
+        Save(root);
+    }
 
     // ── the position panel ───────────────────────────────────────────────────
     [MenuItem("CUBE15/Panels/New Position Panel")]

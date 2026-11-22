@@ -172,12 +172,10 @@ public class SpaceViewController : MonoBehaviour
 
         // A = previous view, B = next view (right controller).
         prevAction = new InputAction("PreviousView", InputActionType.Button);
-        prevAction.AddBinding("<XRController>{RightHand}/primaryButton");
-        prevAction.AddBinding("<Keyboard>/q");
+        ControlMap.Apply(prevAction, "prevview", null, "<Keyboard>/q");
         prevAction.Enable();
         nextAction = new InputAction("NextView", InputActionType.Button);
-        nextAction.AddBinding("<XRController>{RightHand}/secondaryButton");
-        nextAction.AddBinding("<Keyboard>/e");
+        ControlMap.Apply(nextAction, "nextview", null, "<Keyboard>/e");
         nextAction.Enable();
 
         // The starting view must be in the roster.
@@ -189,8 +187,8 @@ public class SpaceViewController : MonoBehaviour
     {
         if (zoomAction != null) { zoomAction.Disable(); zoomAction.Dispose(); }
         if (flickAction != null) { flickAction.Disable(); flickAction.Dispose(); }
-        if (prevAction != null) { prevAction.Disable(); prevAction.Dispose(); }
-        if (nextAction != null) { nextAction.Disable(); nextAction.Dispose(); }
+        if (prevAction != null) { ControlMap.Unbind(prevAction); prevAction.Disable(); prevAction.Dispose(); }
+        if (nextAction != null) { ControlMap.Unbind(nextAction); nextAction.Disable(); nextAction.Dispose(); }
         if (savedNearClip > 0f && origin != null && origin.Camera != null)
             origin.Camera.nearClipPlane = savedNearClip;
         if (savedFarClip > 0f && origin != null && origin.Camera != null)
@@ -405,8 +403,11 @@ public class SpaceViewController : MonoBehaviour
         else if (Mathf.Abs(left.x) < 0.3f) stationLatched = false;
 
         // A = previous view, B = next view
-        if (prevAction.WasPressedThisFrame()) PreviousView();
-        if (nextAction.WasPressedThisFrame()) NextView();
+        if (!ControlMap.Busy)
+        {
+            if (prevAction.WasPressedThisFrame()) PreviousView();
+            if (nextAction.WasPressedThisFrame()) NextView();
+        }
 
         var kb = Keyboard.current;
         if (kb != null)

@@ -26,7 +26,7 @@ public class PanelGrabber : MonoBehaviour
     class Hand
     {
         public string name;
-        public InputAction aimPos, aimRot, devPos, devRot, grip, stick, axis;
+        public InputAction aimPos, aimRot, devPos, devRot, grip, grab, stick, axis;
         public GrabbablePanel hover, held;
         public bool gripDown, free, loggedPose, restrict;
         public Vector3 startHand, startPanel, grabLocal, startDirFlat;
@@ -64,10 +64,11 @@ public class PanelGrabber : MonoBehaviour
         h.devPos = new InputAction("devPos", InputActionType.Value, p + "devicePosition");
         h.devRot = new InputAction("devRot", InputActionType.Value, p + "deviceRotation");
         h.grip = new InputAction("grip", InputActionType.Value, p + "grip");
+        h.grab = new InputAction("grab", InputActionType.Button);       // used when the player has remapped the grab button
+        ControlMap.Apply(h.grab, "grab", usage);
         // pressing the thumbstick in; two spellings of the same button (a path that doesn't exist is ignored)
         h.stick = new InputAction("stick", InputActionType.Button);
-        h.stick.AddBinding(p + "thumbstickClicked");
-        h.stick.AddBinding(p + "joystickClicked");
+        ControlMap.Apply(h.stick, "track", usage);                       // default: press in the thumbstick
         h.axis = new InputAction("axis", InputActionType.Value, p + "{Primary2DAxis}");
         return h;
     }
@@ -76,9 +77,9 @@ public class PanelGrabber : MonoBehaviour
     {
         PanelManager.RigMoved += OnRigMoved;
         Application.onBeforeRender += PanelManager.SyncRig;      // last look before drawing, after everything has moved the rig
-        foreach (var h in new[] { left, right }) { h.aimPos.Enable(); h.aimRot.Enable(); h.devPos.Enable(); h.devRot.Enable(); h.grip.Enable(); h.stick.Enable(); h.axis.Enable(); }
+        foreach (var h in new[] { left, right }) { h.aimPos.Enable(); h.aimRot.Enable(); h.devPos.Enable(); h.devRot.Enable(); h.grip.Enable(); h.grab.Enable(); h.stick.Enable(); h.axis.Enable(); }
     }
-    void OnDisable() { PanelManager.RigMoved -= OnRigMoved; Application.onBeforeRender -= PanelManager.SyncRig; PanelLocomotionLock.Tick(false, false, S.disableTeleport); foreach (var h in new[] { left, right }) { h.aimPos.Disable(); h.aimRot.Disable(); h.devPos.Disable(); h.devRot.Disable(); h.grip.Disable(); h.stick.Disable(); h.axis.Disable(); } }
+    void OnDisable() { PanelManager.RigMoved -= OnRigMoved; Application.onBeforeRender -= PanelManager.SyncRig; PanelLocomotionLock.Tick(false, false, S.disableTeleport); foreach (var h in new[] { left, right }) { h.aimPos.Disable(); h.aimRot.Disable(); h.devPos.Disable(); h.devRot.Disable(); h.grip.Disable(); h.grab.Disable(); h.stick.Disable(); h.axis.Disable(); } }
 
     // The rig moved (space view): move every point the grabber remembers by the same amount, so a panel you are holding
     // doesn't think your hand moved, and "raise your hand to break free" isn't triggered by the rig's own motion.
@@ -145,7 +146,8 @@ public class PanelGrabber : MonoBehaviour
 
         if (!h.loggedPose) { h.loggedPose = true; Debug.Log("[PanelGrabber] " + h.name + " pose found at " + wp); }
 
-        float g = h.grip.ReadValue<float>();
+        // Which button grabs: the grip squeeze (default, with the on/off levels from PanelSettings), or any button the player picked.
+        float g = ControlMap.IsDefault("grab") ? h.grip.ReadValue<float>() : (h.grab.IsPressed() ? 1f : 0f);
         bool pressed = h.gripDown ? g > S.gripOff : g > S.gripOn;
         bool justPressed = pressed && !h.gripDown;
         h.gripDown = pressed;
@@ -161,7 +163,7 @@ public class PanelGrabber : MonoBehaviour
             }
 
             if (justPressed) Debug.Log("[PanelGrabber] " + h.name + " grip pressed, pointing at " + (hit != null ? hit.PanelId + " handle" : "no handle"));
-            if (justPressed && hit != null && !hit.IsGrabbed && !hit.Pinned) Begin(h, hit, wp, wr, head, hitPoint, hitDist);
+            if (justPressed && !ControlMap.Busy && hit != null && !hit.IsGrabbed && !hit.Pinned) Begin(h, hit, wp, wr, head, hitPoint, hitDist);
             return;
         }
 
@@ -281,7 +283,7 @@ public class PanelGrabber : MonoBehaviour
 
         // Only raising or lowering the hand frees the panel's height and tilt.
         Vector3 rigUp2 = PanelManager.Up;
-        if (!h.free && Mathf.Abs(Vector3.Dot(wp - h.startHand, rigUp2)) > S.breakFreeDistance)
+        if (!h.free && Mathf.Abs(Vector3.Dot(wp - h.startHand, rigUp2)) > S.BreakFree)
             EnterFree(h, p, wr, head, true);
 
         Vector3 tip = wp + (wr * Vector3.forward) * dist();      // the spot you are holding goes here

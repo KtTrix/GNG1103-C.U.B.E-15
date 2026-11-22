@@ -73,8 +73,7 @@ public class ViewManager : MonoBehaviour
     {
         if (!enableTestButtons) return;
         toggleAction = new InputAction("ToggleView", InputActionType.Button);
-        toggleAction.AddBinding("<XRController>{LeftHand}/secondaryButton");    // Y on the left controller
-        toggleAction.AddBinding("<Keyboard>/v");
+        ControlMap.Apply(toggleAction, "view", null, "<Keyboard>/v");           // default Y on the left controller; remappable
         toggleAction.performed += OnTogglePressed;
         toggleAction.Enable();
     }
@@ -83,12 +82,13 @@ public class ViewManager : MonoBehaviour
     {
         if (toggleAction == null) return;
         toggleAction.performed -= OnTogglePressed;
+        ControlMap.Unbind(toggleAction);
         toggleAction.Disable();
         toggleAction.Dispose();
         toggleAction = null;
     }
 
-    void OnTogglePressed(InputAction.CallbackContext ctx) => Toggle();
+    void OnTogglePressed(InputAction.CallbackContext ctx) { if (!ControlMap.Busy) Toggle(); }
 
     // ── public controls ──────────────────────────────────────────────────────
     public void Toggle()

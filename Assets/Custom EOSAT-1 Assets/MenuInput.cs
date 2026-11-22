@@ -26,21 +26,20 @@ public class MenuInput : MonoBehaviour
 
     void Awake()
     {
-        // Several spellings of the same button; paths that don't exist are simply ignored.
+        // The button comes from ControlMap (Options > Controls > Button mapping); the keyboard keys are for the editor.
         toggle = new InputAction("toggleMenu", InputActionType.Button);
-        toggle.AddBinding("<XRController>{LeftHand}/menu");
-        toggle.AddBinding("<XRController>{LeftHand}/menuButton");
-        toggle.AddBinding("<XRController>{LeftHand}/{Menu}");
-        toggle.AddBinding("<Keyboard>/escape");
-        toggle.AddBinding("<Keyboard>/m");
+        ControlMap.Apply(toggle, "menu", null, "<Keyboard>/escape", "<Keyboard>/m");
         toggle.performed += _ =>
         {
+            if (ControlMap.Busy) return;                          // a button is being captured for remapping
             if (Time.unscaledTime - lastPress < 0.3f) return;     // ignore double reports of one press
             lastPress = Time.unscaledTime;
+            var menu = PanelManager.Get(menuPanelId);
+            if (menu != null && menu.gameObject.activeSelf && ControlMap.BlockLeave()) return;   // unapplied button changes
             PanelManager.Toggle(menuPanelId);
         };
     }
 
     void OnEnable() => toggle.Enable();
-    void OnDisable() => toggle.Disable();
+    void OnDisable() { ControlMap.Unbind(toggle); toggle.Disable(); }
 }

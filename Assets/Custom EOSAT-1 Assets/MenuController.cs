@@ -36,6 +36,7 @@ public class MenuController : MonoBehaviour
     public void ShowPage(string pageName)
     {
         if (pagesRoot == null) return;
+        if (ControlMap.BlockLeave()) return;          // unapplied button changes: warn first
         string want = Key(pageName);
         bool found = false;
 
@@ -55,16 +56,22 @@ public class MenuController : MonoBehaviour
     /// <summary>Go back one page (Back buttons). From the first page it closes the menu.</summary>
     public void Back()
     {
+        if (ControlMap.BlockLeave()) return;
         if (history.Count == 0) { Close(); return; }
         string previous = history.Pop();
         current = "";               // so ShowPage doesn't push the page we are leaving
         ShowPage(previous);
     }
 
-    public void Close() => gameObject.SetActive(false);
+    public void Close()
+    {
+        if (ControlMap.BlockLeave()) return;
+        gameObject.SetActive(false);
+    }
 
     public void Quit()
     {
+        if (ControlMap.BlockLeave()) return;
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;     // stops Play mode in Unity
 #else

@@ -3,12 +3,15 @@ using UnityEngine;
 
 /// <summary>
 /// The one place every saved setting lives. Values are remembered between runs (PlayerPrefs, which also
-/// works on the Quest). Later menu pages (sliders, toggles) read and write through here, and anything that
+/// works on the Quest). Menu pages (sliders, toggles) read and write through here, and anything that
 /// cares about a setting listens to Changed.
 ///
 ///     float sens = CubeSettings.GetFloat("turn.snap", 45f);
 ///     CubeSettings.SetFloat("turn.snap", 30f);
 ///     CubeSettings.Changed += key => { if (key == "turn.snap") ... };
+///
+/// Changes are written to disk a moment after the last one (so dragging a slider doesn't hammer the Quest's storage),
+/// and always when the app is paused or quits.
 /// </summary>
 public static class CubeSettings
 {
@@ -34,7 +37,34 @@ public static class CubeSettings
 
     static void Done(string key)
     {
-        PlayerPrefs.Save();
+        Saver.Mark();
         Changed?.Invoke(key);
+    }
+
+    // writes to disk shortly after the last change
+    class Saver : MonoBehaviour
+    {
+        static Saver instance;
+        float saveAt = -1f;
+
+        public static void Mark()
+        {
+            if (!Application.isPlaying) { PlayerPrefs.Save(); return; }
+            if (instance == null)
+            {
+                var go = new GameObject("CubeSettingsSaver") { hideFlags = HideFlags.HideAndDontSave };
+                DontDestroyOnLoad(go);
+                instance = go.AddComponent<Saver>();
+            }
+            instance.saveAt = Time.unscaledTime + 1f;
+        }
+
+        void Update()
+        {
+            if (saveAt >= 0f && Time.unscaledTime >= saveAt) { saveAt = -1f; PlayerPrefs.Save(); }
+        }
+
+        void OnApplicationPause(bool paused) { if (paused && saveAt >= 0f) { saveAt = -1f; PlayerPrefs.Save(); } }
+        void OnApplicationQuit() { if (saveAt >= 0f) { saveAt = -1f; PlayerPrefs.Save(); } }
     }
 }

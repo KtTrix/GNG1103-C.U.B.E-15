@@ -30,8 +30,20 @@ public class PanelSettings : ScriptableObject
     [Tooltip("How heavy panels feel. 0 = light (follows your hand instantly), 1 = very heavy (slow, lazy to move and turn).")]
     [Range(0f, 1f)] public float weight = 0.5f;
 
+    /// <summary>The weight in use: what the player set in the menu (Options > Panels > Panel feel), else the number above.</summary>
+    public float Weight => CubeSettings.GetFloat("panel.weight", weight);
+
+    /// <summary>The break-free distance in use (metres): the player's menu setting, else the number at the top.</summary>
+    public float BreakFree => CubeSettings.GetFloat("panel.breakfree", breakFreeDistance);
+
     /// <summary>How much slower things get as the weight goes up (1 = no slowing).</summary>
-    public float Heft => 1f + weight * weight * 12f;
+    public float Heft { get { float w = Weight; return 1f + w * w * 12f; } }
+
+    [Header("Attach to HEAD (lazy follow)")]
+    [Tooltip("How quickly the panel glides to its new spot once it starts following (higher = faster).")]
+    public float lazyFollowSpeed = 3f;
+    [Tooltip("The panel stays put until it is this far from where it should be (metres, plus a turn allowance). Bigger = lazier.")]
+    public float lazyFollowDeadZone = 0.3f;
 
     [Header("Feel")]
     [Tooltip("How quickly a grabbed panel turns to face you (higher = faster).")]

@@ -17,6 +17,8 @@ public class SatelliteDataPage : MonoBehaviour
     [SerializeField] TMP_Text portText;
     [SerializeField] Image ipBox;
     [SerializeField] Image portBox;
+    [Tooltip("Only on the stand-alone panel: the instructions that cover the keypad while the Instructions button is on.")]
+    [SerializeField] GameObject helpOverlay;
 
     [Tooltip("The address the USB CABLE button uses (works with: adb reverse tcp:8100 tcp:8100).")]
     [SerializeField] string usbHost = "127.0.0.1";
@@ -33,6 +35,7 @@ public class SatelliteDataPage : MonoBehaviour
         if (telemetry != null) { ip = telemetry.Host; port = telemetry.Port.ToString(); }
         editingPort = false;
         message = "";
+        if (helpOverlay != null) helpOverlay.SetActive(false);
         Refresh();
     }
 
@@ -44,6 +47,9 @@ public class SatelliteDataPage : MonoBehaviour
     }
 
     // ── buttons ──────────────────────────────────────────────────────────────
+    /// <summary>Show or hide the instructions (stand-alone panel only; the menu has a page for them).</summary>
+    public void ToggleHelp() { if (helpOverlay != null) helpOverlay.SetActive(!helpOverlay.activeSelf); }
+
     public void SelectIp() { editingPort = false; Refresh(); }
     public void SelectPort() { editingPort = true; Refresh(); }
 

@@ -200,6 +200,9 @@ public static class PanelManager
         return null;
     }
 
+    /// <summary>Tell the Panels page (and anything else listening) that something about the panels changed.</summary>
+    public static void NotifyChanged() => Changed?.Invoke();
+
     public static bool IsVisible(string id)
     {
         var p = Get(id);
@@ -275,6 +278,48 @@ public static class PanelManager
         p.transform.SetPositionAndRotation(pos, Quaternion.LookRotation(away.normalized, Vector3.up));
         Debug.Log("[Panels] placed '" + p.PanelId + "' beside the globe at " + pos);
         return true;
+    }
+
+    /// <summary>
+    /// Reset all (menu button): every panel in the default layout is opened and put back in its start place for this
+    /// view, even if it was open somewhere else. Other panels are left alone.
+    /// </summary>
+    public static void ResetLayout()
+    {
+        Refresh();
+        foreach (var p in new List<GrabbablePanel>(panels))
+        {
+            if (p == null || !PerView(p)) continue;
+            bool use = p.InDefaultLayout || p.PanelId == "position" || p.PanelId == "map";
+            if (use) ResetPanel(p);
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Reset one panel (the Reset button on its row): it is opened and put back in its start place for this view, with
+    /// its track unlocked and attached to the world again. Panels that aren't in the default layout go in front of you.
+    /// </summary>
+    public static void ResetPanel(GrabbablePanel p)
+    {
+        if (p == null) return;
+        float yaw = p.LayoutYaw;
+        bool use = p.InDefaultLayout;
+        if (!use && p.PanelId == "position") { use = true; yaw = -32f; }
+        if (!use && p.PanelId == "map") { use = true; yaw = 32f; }
+
+        p.Unlocked = false;
+        p.Attach = GrabbablePanel.AttachMode.World;
+        p.gameObject.SetActive(true);
+
+        bool beside = use && PanelSettings.Get().layoutBesideGlobe &&
+                      PlaceBesideGlobe(p, yaw, PanelSettings.Get().layoutGlobeGap);
+        if (!beside)
+        {
+            if (use) PlaceInFront(p, p.LayoutDistance, yaw, p.LayoutHeight);
+            else PlaceInFront(p, 1.5f, 0f, -0.05f);
+        }
+        Changed?.Invoke();
     }
 
     /// <summary>

@@ -79,10 +79,8 @@ public class MixedRealityMode : MonoBehaviour
         else if (useDefaultToggleButtons)
         {
             builtInToggle = new InputAction("ToggleMixedReality", InputActionType.Button);
-            // {PrimaryButton} is the "X" button on the left Quest Touch controller
-            // (A on the right, which the template uses for jumping). It works with any OpenXR controller profile.
-            builtInToggle.AddBinding("<XRController>{LeftHand}/{PrimaryButton}");
-            builtInToggle.AddBinding("<Keyboard>/m"); // for testing in the editor
+            // Default: the "X" button on the left Quest Touch controller. Remappable in Options > Controls > Button mapping.
+            ControlMap.Apply(builtInToggle, "passthrough", null, "<Keyboard>/m"); // the key is for testing in the editor
             builtInToggle.performed += OnTogglePressed;
             builtInToggle.Enable();
         }
@@ -96,6 +94,7 @@ public class MixedRealityMode : MonoBehaviour
         if (builtInToggle != null)
         {
             builtInToggle.performed -= OnTogglePressed;
+            ControlMap.Unbind(builtInToggle);
             builtInToggle.Disable();
             builtInToggle.Dispose();
             builtInToggle = null;
@@ -107,7 +106,7 @@ public class MixedRealityMode : MonoBehaviour
         SetMixedReality(startInMixedReality);
     }
 
-    void OnTogglePressed(InputAction.CallbackContext ctx) => ToggleMixedReality();
+    void OnTogglePressed(InputAction.CallbackContext ctx) { if (!ControlMap.Busy) ToggleMixedReality(); }
 
     /// <summary>Hook this up to a UI button later (for example on one of the panels).</summary>
     public void ToggleMixedReality() => SetMixedReality(!IsMixedReality);
