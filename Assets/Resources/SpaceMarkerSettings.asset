@@ -15,6 +15,12 @@ MonoBehaviour:
   axisX: {r: 1, g: 0, b: 0, a: 1}
   axisY: {r: 0, g: 1, b: 0, a: 1}
   axisZ: {r: 0, g: 0, b: 1, a: 1}
+  satAxisX: X
+  satAxisY: Y
+  satAxisZ: Z
+  earthAxisX: X
+  earthAxisY: Y
+  earthAxisZ: Z
   satLength: 0.65
   satThickness: 0.012
   satLabelSize: 0.16
@@ -23,6 +29,20 @@ MonoBehaviour:
   earthLengthRadii: 1.6
   earthThicknessRadii: 0.005
   earthLabelRadii: 0.09
+  sunEarthOnByDefault: 0
+  sunEarthWord: S
+  sunEarthColor: {r: 1, g: 0.85, b: 0.25, a: 1}
+  sunEarthLengthRadii: 1.6
+  sunEarthThicknessRadii: 0.005
+  sunEarthLabelFraction: 0.12
+  sunSatOnByDefault: 1
+  sunSatWord: S
+  sunSatColor: {r: 1, g: 0.85, b: 0.25, a: 1}
+  sunSatLength: 0.65
+  sunSatThickness: 0.012
+  sunSatMinAngleDeg: 4
+  sunSatMaxFractionOfDistance: 0.542
+  sunSatLabelFraction: 0.2
   dotColor: {r: 0, g: 1, b: 0, a: 1}
   dotSizeDeg: 1.5
   pulseSeconds: 1

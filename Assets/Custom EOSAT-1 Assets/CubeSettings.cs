@@ -30,6 +30,12 @@ public static class CubeSettings
     public static void SetBool(string key, bool v) { PlayerPrefs.SetInt(Prefix + key, v ? 1 : 0); Done(key); }
     public static void SetString(string key, string v) { PlayerPrefs.SetString(Prefix + key, v); Done(key); }
 
+    // Defaults that come from somewhere other than the menu row (e.g. a tick box in an asset). A row shows this when
+    // the player has not picked a value yet.
+    static readonly System.Collections.Generic.Dictionary<string, int> defaults = new System.Collections.Generic.Dictionary<string, int>();
+    public static void SetDefault(string key, int value) { defaults[key] = value; }
+    public static int DefaultFor(string key, int fallback) => defaults.TryGetValue(key, out int v) ? v : fallback;
+
     public static bool Has(string key) => PlayerPrefs.HasKey(Prefix + key);
 
     /// <summary>Forget one setting so it goes back to its default.</summary>

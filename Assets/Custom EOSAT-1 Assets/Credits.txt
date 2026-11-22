@@ -1,9 +1,25 @@
 <b>EOSAT-1 VR SIMULATOR</b>
-Team C.U.B.E-15 - GNG1103, University of Ottawa
+Group 15 - GNG1103C (Intro to Engineering Design), University of Ottawa
 
-<b>Team</b>
-(add names and roles here)
+<b>Collabrative Unified Breakthrough Explorers 15 (C.U.B.E.15)</b>
+Alex Chui (Team Lead)
+Kylie Trump
+Ava Leitman
+Christina Nasrallah
+Evan O'Neil
 
-<b>Credits</b>
-Earth, Moon and Sun textures: Solar System Scope (CC BY 4.0)
-Quest controller models: WebXR Input Profiles (MIT, Copyright (c) 2019 Amazon)
+<b>Software and tools</b>
+Game engine: Unity 6 (6000.6.2f1), Universal Render Pipeline, Unity Technologies
+VR: XR Interaction Toolkit 3.5.1 and OpenXR, with the Unity VR project template's starter assets
+Text: TextMesh Pro (included with Unity)
+Headset: Meta Quest 2, 3, and Pro
+Telemetry: the client's EOSAT-1 simulator and the supplied test stub (vr_stub.py)
+
+<b>AI assistance</b>
+Much of the code was written with Claude (Claude Sonnet 5.5, Anthropic) through Claude Code. That covers the warning system, space view, welcome panel, panel builder tools and settings. C.U.B.E.15 directed, tested and approved it.
+
+<b>Images and models</b>
+Earth, Moon and Sun textures (2k and 8k): Solar System Scope, CC BY 4.0, solarsystemscope.com/textures
+Quest controller models and the welcome-panel controller pictures (rendered from them): WebXR Input Profiles, MIT licence, Copyright (c) 2019 Amazon, github.com/immersive-web/webxr-input-profiles
+World map image (flat_earth03.jpg): NASA/Goddard Space Flight Center Scientific Visualization Studio, "Equirectangular Projected Earth for 'LARGEST'" (svs.gsfc.nasa.gov/3615). Blue Marble data courtesy of Reto Stockli (NASA/GSFC).
+Satellite model: made by the team (with Claude's help) from the dimensions and reference data inside the client's test stub (vr_stub.py)Ground-station positions: from the simulator's own station list (same five stations as the stub)

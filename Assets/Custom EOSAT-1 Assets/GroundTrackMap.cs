@@ -44,7 +44,9 @@ public class GroundTrackMap : MonoBehaviour
     [SerializeField] bool showStationLabels = true;
     [Tooltip("A round sprite for the dots (the built-in 'Knob' works). Empty = square dots.")]
     [SerializeField] Sprite dotSprite;
+    [Tooltip("Colour of the station dots. Change it while the game is running to see it update straight away.")]
     [SerializeField] Color stationColor = new Color(0.34f, 0.67f, 1f);
+    [Tooltip("Colour of the station names.")]
     [SerializeField] Color stationLabelColor = new Color(0.62f, 0.70f, 0.78f);
     [SerializeField] float stationDotSize = 12f;
     [SerializeField] float labelFontSize = 18f;
@@ -137,6 +139,9 @@ public class GroundTrackMap : MonoBehaviour
 
     void Update()
     {
+        if (stationDots.Count > 0 && (stationColor != appliedDot || stationLabelColor != appliedLabel ||
+                                      stationDotSize != appliedSize || labelFontSize != appliedFont))
+            ApplyStationLook();
         if (telemetry == null || telemetry.Latest == null) return;
         if (telemetry.FramesReceived == lastFrameCount) return;
         lastFrameCount = telemetry.FramesReceived;
@@ -212,6 +217,31 @@ public class GroundTrackMap : MonoBehaviour
         new Vector2(Mathf.Clamp01((lonDeg + 180f) / 360f), Mathf.Clamp01((latDeg + 90f) / 180f));
 
     // ── ground stations, created at start so there is nothing to place by hand ──
+    readonly List<Image> stationDots = new List<Image>();
+    readonly List<TextMeshProUGUI> stationLabels = new List<TextMeshProUGUI>();
+    Color appliedDot, appliedLabel; float appliedSize, appliedFont;
+
+    // Colours and sizes are read live, so they can be tuned in the Inspector while the game runs.
+    void ApplyStationLook()
+    {
+        appliedDot = stationColor; appliedLabel = stationLabelColor; appliedSize = stationDotSize; appliedFont = labelFontSize;
+        foreach (var d in stationDots)
+        {
+            if (d == null) continue;
+            d.color = stationColor;
+            ((RectTransform)d.transform).sizeDelta = new Vector2(stationDotSize, stationDotSize);
+        }
+        foreach (var t in stationLabels)
+        {
+            if (t == null) continue;
+            t.color = stationLabelColor;
+            t.fontSize = labelFontSize;
+            var lrt = t.rectTransform;
+            lrt.anchoredPosition = new Vector2(stationDotSize * 0.8f, 0f);
+            lrt.sizeDelta = new Vector2(200f, labelFontSize * 1.4f);
+        }
+    }
+
     void BuildStations()
     {
         foreach (var s in Stations)
@@ -230,6 +260,7 @@ public class GroundTrackMap : MonoBehaviour
             img.sprite = dotSprite;
             img.color = stationColor;
             img.raycastTarget = false;
+            stationDots.Add(img);
 
             if (!showStationLabels) continue;
 
@@ -249,6 +280,8 @@ public class GroundTrackMap : MonoBehaviour
             text.alignment = TextAlignmentOptions.MidlineLeft;
             text.overflowMode = TextOverflowModes.Overflow;
             text.raycastTarget = false;
+            stationLabels.Add(text);
         }
+        ApplyStationLook();
     }
 }

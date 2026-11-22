@@ -30,6 +30,14 @@ public class SpaceMarkerSettings : ScriptableObject
     public Color axisY = new Color(0.30f, 0.85f, 0.45f);
     public Color axisZ = new Color(0.35f, 0.60f, 1.00f);
 
+    [Header("Axis words (the letters at the arrow tips; leave one empty to hide it)")]
+    public string satAxisX = "X";
+    public string satAxisY = "Y";
+    public string satAxisZ = "Z";
+    public string earthAxisX = "X";
+    public string earthAxisY = "Y";
+    public string earthAxisZ = "Z";
+
     [Header("Satellite axes")]
     [Tooltip("Length of each axis from the satellite's centre, in model metres (the body is 0.37 m long).")]
     public float satLength = 0.65f;
@@ -50,6 +58,36 @@ public class SpaceMarkerSettings : ScriptableObject
     public float earthThicknessRadii = 0.012f;
     [Tooltip("Size of the letters, in Earth radii.")]
     public float earthLabelRadii = 0.09f;
+
+    [Header("Earth sun vector (arrow from the Earth's centre pointing at the Sun)")]
+    [Tooltip("Ticked = it is shown until the player switches it off in Options > Display. Unticked = hidden until they switch it on. (A player's own choice always wins.)")]
+    public bool sunEarthOnByDefault = true;
+    [Tooltip("The word at the arrow's tip (empty = no word).")]
+    public string sunEarthWord = "Sun";
+    public Color sunEarthColor = new Color(1f, 0.85f, 0.25f);
+    [Tooltip("How far it reaches from the Earth's centre, in Earth radii.")]
+    public float sunEarthLengthRadii = 2.2f;
+    [Tooltip("Shaft thickness, in Earth radii.")]
+    public float sunEarthThicknessRadii = 0.016f;
+    [Tooltip("Size of the word 'Sun' at the tip, as a fraction of the arrow's length.")]
+    public float sunEarthLabelFraction = 0.12f;
+
+    [Header("Satellite sun vector (arrow from the satellite pointing at the Sun)")]
+    [Tooltip("Ticked = it is shown until the player switches it off in Options > Display. Unticked = hidden until they switch it on. (A player's own choice always wins.)")]
+    public bool sunSatOnByDefault = true;
+    [Tooltip("The word at the arrow's tip (empty = no word).")]
+    public string sunSatWord = "Sun";
+    public Color sunSatColor = new Color(1f, 0.85f, 0.25f);
+    [Tooltip("Length from the satellite's centre, in model metres.")]
+    public float sunSatLength = 0.8f;
+    [Tooltip("Shaft thickness, in model metres.")]
+    public float sunSatThickness = 0.014f;
+    [Tooltip("It never looks smaller than this many degrees of your view, so it grows as you zoom out.")]
+    public float sunSatMinAngleDeg = 5f;
+    [Tooltip("...and is never longer than this fraction of your distance to the satellite.")]
+    [Range(0.05f, 1f)] public float sunSatMaxFractionOfDistance = 0.25f;
+    [Tooltip("Size of the word 'Sun' at the tip, as a fraction of the arrow's length.")]
+    public float sunSatLabelFraction = 0.12f;
 
     [Header("Dot")]
     public Color dotColor = new Color(1f, 0.72f, 0.92f);
@@ -84,6 +122,8 @@ public class SpaceMarkerSettings : ScriptableObject
     [Range(0f, 1f)] public float trailLowestStrength = 0.15f;
 
     public Color[] AxisColors => new[] { axisX, axisY, axisZ };
+    public string[] SatWords => new[] { satAxisX, satAxisY, satAxisZ };
+    public string[] EarthWords => new[] { earthAxisX, earthAxisY, earthAxisZ };
 
     /// <summary>A number that changes whenever a value that needs the arrows to be rebuilt changes.</summary>
     public int GeometryStamp()
@@ -91,8 +131,13 @@ public class SpaceMarkerSettings : ScriptableObject
         unchecked
         {
             int h = 17;
+            foreach (var w in SatWords) h = h * 31 + (w ?? "").GetHashCode();
+            foreach (var w in EarthWords) h = h * 31 + (w ?? "").GetHashCode();
+            h = h * 31 + (sunEarthWord ?? "").GetHashCode(); h = h * 31 + (sunSatWord ?? "").GetHashCode();
             h = h * 31 + satLength.GetHashCode(); h = h * 31 + satThickness.GetHashCode(); h = h * 31 + satLabelSize.GetHashCode();
             h = h * 31 + earthLengthRadii.GetHashCode(); h = h * 31 + earthThicknessRadii.GetHashCode(); h = h * 31 + earthLabelRadii.GetHashCode();
+            h = h * 31 + sunEarthColor.GetHashCode(); h = h * 31 + sunEarthLengthRadii.GetHashCode(); h = h * 31 + sunEarthThicknessRadii.GetHashCode(); h = h * 31 + sunEarthLabelFraction.GetHashCode();
+            h = h * 31 + sunSatColor.GetHashCode(); h = h * 31 + sunSatLength.GetHashCode(); h = h * 31 + sunSatThickness.GetHashCode(); h = h * 31 + sunSatLabelFraction.GetHashCode();
             h = h * 31 + axisX.GetHashCode(); h = h * 31 + axisY.GetHashCode(); h = h * 31 + axisZ.GetHashCode();
             return h;
         }

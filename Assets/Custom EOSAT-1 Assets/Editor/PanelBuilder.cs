@@ -291,13 +291,18 @@ public static class PanelBuilder
         ChoiceRow(pg, "Satellite axes", "display.axes", 1, new[] { "Off", "On" }, 0.98f);
         ChoiceRow(pg, "Earth axes", "display.earthaxes", 1, new[] { "Off", "On" }, 0.84f);
         ChoiceRow(pg, "Satellite marker", "display.beacon", 1, new[] { "Off", "On" }, 0.70f);
-        var h = Text("Display hint", pg, new Vector2(0.08f, 0.30f), new Vector2(0.92f, 0.55f), 19, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
-        h.text = "Axes: X red, Y green, Z blue. The satellite's axes turn with it. The Earth's show the inertial frame (ECI): Z north pole, X vernal equinox.\n\nThe marker is a pulsing dot and a trail that keep the satellite easy to find when zoomed out. They fade as you come close.";
+        ChoiceRow(pg, "Earth sun vector", "display.sunearth", 1, new[] { "Off", "On" }, 0.56f);
+        ChoiceRow(pg, "Satellite sun vector", "display.sunsat", 1, new[] { "Off", "On" }, 0.42f);
+        var h = Text("Display hint", pg, new Vector2(0.08f, 0.24f), new Vector2(0.92f, 0.28f), 16, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        h.enableAutoSizing = true; h.fontSizeMin = 11; h.fontSizeMax = 16;
+        h.text = "Axes: X red, Y green, Z blue. Sun vectors are yellow arrows pointing at the Sun. The marker is a dot and trail that find the satellite when zoomed out.";
 
         var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
         UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.axes");
         UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.earthaxes");
         UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.beacon");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.sunearth");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.sunsat");
         BackButton(pg, mc);
     }
 
@@ -310,21 +315,21 @@ public static class PanelBuilder
         CompactSlider(pg, "Your height", "access.playerheight", 1f, 2.2f, 1.75f, 0.05f, "0.00", " m", 0.98f, true);
         CompactSlider(pg, "Raise / lower view", "access.height", -0.5f, 1f, 0f, 0.05f, "0.00", " m", 0.84f, true);
         ChoiceRow(pg, "Units", "access.units", 0, new[] { "Metres", "Feet", "Centimetres" }, 0.70f);
+        CompactSlider(pg, "Spin warning limit", "access.spinlimit", 2f, 60f, 10f, 1f, "0", " deg/s", 0.56f);
 
-        var mb = Button("Match my height", pg, new Vector2(0.1f, 0.46f), new Vector2(0.9f, 0.55f), 26, CubeTheme.Button);
+        var mb = Button("Match my height", pg, new Vector2(0.05f, 0.31f), new Vector2(0.49f, 0.40f), 24, CubeTheme.Button);
         UnityEventTools.AddPersistentListener(mb.onClick, act.MatchHeight);
-        var h1 = Text("Match hint", pg, new Vector2(0.08f, 0.395f), new Vector2(0.92f, 0.455f), 18, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
-        h1.text = "Sit or stand as you play, look straight ahead, then press.";
-
-        var rc = Button("Recenter view", pg, new Vector2(0.1f, 0.30f), new Vector2(0.9f, 0.39f), 26, CubeTheme.Button);
+        var rc = Button("Recenter view", pg, new Vector2(0.51f, 0.31f), new Vector2(0.95f, 0.40f), 24, CubeTheme.Button);
         UnityEventTools.AddPersistentListener(rc.onClick, act.Recenter);
-        var h2 = Text("Recenter hint", pg, new Vector2(0.08f, 0.245f), new Vector2(0.92f, 0.295f), 18, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
-        h2.text = "Brings the hub or the space view back around you.";
+        var h1 = Text("Hint", pg, new Vector2(0.06f, 0.24f), new Vector2(0.94f, 0.305f), 18, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        h1.enableAutoSizing = true; h1.fontSizeMin = 12; h1.fontSizeMax = 18;
+        h1.text = "Match: sit or stand as you play, look ahead, then press. Recenter: brings the view back around you.";
 
         var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
         UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.playerheight");
         UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.height");
         UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.units");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.spinlimit");
         BackButton(pg, mc);
     }
 

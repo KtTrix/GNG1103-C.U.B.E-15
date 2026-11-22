@@ -166,6 +166,11 @@ public class SpaceWorld : MonoBehaviour
         if (earthAxes == null) earthAxes = gameObject.AddComponent<EarthAxes>();
         earthAxes.Init(earthRadiusUnits);
 
+        // Yellow arrows pointing at the Sun, from the Earth and from the satellite; switched in Options > Display.
+        var sunVectors = GetComponent<SunVectors>();
+        if (sunVectors == null) sunVectors = gameObject.AddComponent<SunVectors>();
+        sunVectors.Init(this, satellite, earthRadiusUnits);
+
         // A pulsing dot and a trail that keep the satellite findable from far away; they fade out as you come close.
         var beacon = GetComponent<SatelliteBeacon>();
         if (beacon == null) beacon = gameObject.AddComponent<SatelliteBeacon>();

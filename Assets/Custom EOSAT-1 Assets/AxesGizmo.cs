@@ -10,7 +10,8 @@ using UnityEngine;
 public static class AxesGizmo
 {
     /// <param name="dirs">Local direction of the X, Y and Z arrows.</param>
-    public static GameObject Build(Transform parent, Vector3[] dirs, float length, float thickness, float labelSize, Color[] colors)
+    /// <param name="words">The text at the three tips (X, Y, Z when null). An empty string leaves that label out.</param>
+    public static GameObject Build(Transform parent, Vector3[] dirs, float length, float thickness, float labelSize, Color[] colors, string[] words = null)
     {
         var root = new GameObject("Axes");
         root.transform.SetParent(parent, false);
@@ -28,19 +29,47 @@ public static class AxesGizmo
                  new Vector3(thickness, length * 0.5f, thickness), m);                 // a cylinder is 2 units tall
             Part(PrimitiveType.Sphere, "Tip", axis, new Vector3(0f, length, 0f), Vector3.one * thickness * 3.2f, m);
 
+            string word = words != null && i < words.Length ? words[i] : names[i];
+            if (string.IsNullOrEmpty(word)) continue;                                 // no label wanted
             var label = new GameObject("Label " + names[i]);
             label.transform.SetParent(root.transform, false);
             label.transform.localPosition = dirs[i] * (length + labelSize * 0.9f);
             var t = label.AddComponent<TextMeshPro>();
-            t.text = "<b>" + names[i] + "</b>";
+            t.text = "<b>" + word + "</b>";
             t.fontSize = 2f;
-            t.rectTransform.sizeDelta = new Vector2(1f, 1f);
+            t.rectTransform.sizeDelta = new Vector2(2f, 1f);
             t.transform.localScale = Vector3.one * labelSize * 3f;
             t.alignment = TextAlignmentOptions.Center;
             t.color = colors[i];
             t.textWrappingMode = TextWrappingModes.NoWrap;
             label.AddComponent<FaceViewer>();
         }
+        return root;
+    }
+
+    /// <summary>One arrow along +y (the caller turns the returned object to point it), with a name at the tip that faces the viewer.</summary>
+    public static GameObject BuildArrow(Transform parent, string objectName, float length, float thickness, float labelSize, Color color, string label)
+    {
+        if (string.IsNullOrEmpty(label)) labelSize = 0f;
+        var root = new GameObject(objectName);
+        root.transform.SetParent(parent, false);
+        Material m = Bright(FindTemplate(), color);
+        Part(PrimitiveType.Cylinder, "Shaft", root.transform, new Vector3(0f, length * 0.5f, 0f), new Vector3(thickness, length * 0.5f, thickness), m);
+        Part(PrimitiveType.Sphere, "Tip", root.transform, new Vector3(0f, length, 0f), Vector3.one * thickness * 3.2f, m);
+
+        if (string.IsNullOrEmpty(label)) return root;
+        var lg = new GameObject("Label");
+        lg.transform.SetParent(root.transform, false);
+        lg.transform.localPosition = new Vector3(0f, length + labelSize * 0.9f, 0f);
+        var t = lg.AddComponent<TextMeshPro>();
+        t.text = "<b>" + label + "</b>";
+        t.fontSize = 2f;
+        t.rectTransform.sizeDelta = new Vector2(2f, 1f);
+        t.transform.localScale = Vector3.one * labelSize * 3f;
+        t.alignment = TextAlignmentOptions.Center;
+        t.color = color;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        lg.AddComponent<FaceViewer>();
         return root;
     }
 

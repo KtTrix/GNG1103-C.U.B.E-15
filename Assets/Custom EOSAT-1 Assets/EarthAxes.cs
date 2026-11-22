@@ -39,7 +39,7 @@ public class EarthAxes : MonoBehaviour
         var S = SpaceMarkerSettings.Instance;
         if (root != null) Destroy(root);
         root = AxesGizmo.Build(transform, new[] { Vector3.right, Vector3.forward, Vector3.up },
-                               radius * S.earthLengthRadii, radius * S.earthThicknessRadii, radius * S.earthLabelRadii, S.AxisColors);
+                               radius * S.earthLengthRadii, radius * S.earthThicknessRadii, radius * S.earthLabelRadii, S.AxisColors, S.EarthWords);
         root.SetActive(false);
         stamp = S.GeometryStamp();
     }

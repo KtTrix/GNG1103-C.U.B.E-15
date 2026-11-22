@@ -41,7 +41,7 @@ public class SatelliteAxes : MonoBehaviour
         var S = SpaceMarkerSettings.Instance;
         if (root != null) Destroy(root);
         root = AxesGizmo.Build(transform, new[] { Vector3.right, Vector3.forward, Vector3.up },
-                               S.satLength, S.satThickness, S.satLabelSize, S.AxisColors);
+                               S.satLength, S.satThickness, S.satLabelSize, S.AxisColors, S.SatWords);
         root.SetActive(false);
         stamp = S.GeometryStamp();
     }

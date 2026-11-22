@@ -29,7 +29,7 @@ public class SettingChoice : MonoBehaviour
         CubeSettings.Changed -= OnSettingChanged;
     }
 
-    int Value => Mathf.Clamp(CubeSettings.GetInt(key, defaultValue), 0, Mathf.Max(0, labels.Length - 1));
+    int Value => Mathf.Clamp(CubeSettings.GetInt(key, CubeSettings.DefaultFor(key, defaultValue)), 0, Mathf.Max(0, labels.Length - 1));
 
     void Next() => CubeSettings.SetInt(key, (Value + 1) % Mathf.Max(1, labels.Length));
     void OnSettingChanged(string k) { if (k == key) Show(); }

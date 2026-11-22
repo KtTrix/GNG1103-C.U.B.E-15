@@ -36,6 +36,10 @@ public class WarningMonitor : MonoBehaviour
 
     // ── what the others read ─────────────────────────────────────────────────
     public WarningSettings Settings => WarningSettings.Instance;
+
+    /// <summary>The spin limit in deg/s: the player's choice in Options > Accessibility, or the default from WarningSettings.</summary>
+    public const string SpinLimitKey = "access.spinlimit";
+    public float SpinLimit => Mathf.Max(0.5f, CubeSettings.GetFloat(SpinLimitKey, Settings.spinWarnDegPerSec));
     public IReadOnlyList<Warning> Active => active;
     /// <summary>Changes whenever the list or its text changes.</summary>
     public int Version { get; private set; }
@@ -230,7 +234,7 @@ public class WarningMonitor : MonoBehaviour
         // once it is on, it stays on until the spin has dropped below the lower line
         // on above the warning level; off again only once below it (the clear level can never be set under the warning level's fair share)
         bool was = spinGate.active;
-        bool want = SpinDegPerSec > S.spinWarnDegPerSec;          // on above the limit, off at or below it
+        bool want = SpinDegPerSec > SpinLimit;          // on above the limit, off at or below it
         spinGate.Tick(want, now, S.spin);
         if (spinGate.active && !was && frame != null)
             Debug.Log("[Warning] HIGH SPIN " + SpinDegPerSec.ToString("F1") + " deg/s (latest sample " + lastRawRate.ToString("F1") +
@@ -247,7 +251,8 @@ public class WarningMonitor : MonoBehaviour
         float cover = 0f;
         if (on)
         {
-            float t = Mathf.InverseLerp(S.spinWarnDegPerSec, Mathf.Max(S.spinWarnDegPerSec + 0.1f, S.axesCoverSpinDegPerSec), SpinDegPerSec);
+            float lim = SpinLimit;
+            float t = Mathf.InverseLerp(lim, Mathf.Max(lim + 0.1f, S.axesCoverSpinDegPerSec), SpinDegPerSec);
             cover = t * t * (3f - 2f * t);
         }
         CoverAmount = Mathf.MoveTowards(CoverAmount, cover, dt * 2f);
@@ -307,7 +312,7 @@ public class WarningMonitor : MonoBehaviour
         var inv = System.Globalization.CultureInfo.InvariantCulture;
 
         if (spinGate.active)
-            Add("spin", "HIGH SPIN", SpinDegPerSec.ToString("F1", inv) + " deg/s  (limit " + S.spinWarnDegPerSec.ToString("0.#", inv) + ")", true);
+            Add("spin", "HIGH SPIN", SpinDegPerSec.ToString("F1", inv) + " deg/s  (limit " + SpinLimit.ToString("0.#", inv) + ")", true);
         if (linkGate.active)
             Add("link", "LINK LOST", string.IsNullOrEmpty(tel != null ? tel.LastError : null) ? "reconnecting..." : tel.LastError, false);
         if (staleGate.active)
