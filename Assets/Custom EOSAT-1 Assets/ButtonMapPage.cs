@@ -139,7 +139,7 @@ public class ButtonMapPage : MonoBehaviour
 
     public void RestoreDefaults()
     {
-        foreach (var e in ControlMap.Entries) draft[e.id] = e.defaultPath;
+        foreach (var e in ControlMap.Entries) draft[e.id] = ControlMap.Default(e.id);
         warned = false;
         Say(AnyDirty() ? "Default buttons loaded. Press APPLY to keep them." : "Buttons are already the defaults.", CubeTheme.Dim);
     }
@@ -150,7 +150,12 @@ public class ButtonMapPage : MonoBehaviour
         var none = new List<string>();
         foreach (var e in ControlMap.Entries)
         {
-            if (IsDirty(e.id)) ControlMap.Set(e.id, draft[e.id]);
+            if (IsDirty(e.id))
+            {
+                // a default is stored as "no choice", so it keeps following the dominant hand setting
+                if (draft[e.id] == ControlMap.Default(e.id)) ControlMap.Reset(e.id);
+                else ControlMap.Set(e.id, draft[e.id]);
+            }
             if (ControlMap.IsNone(draft[e.id])) none.Add(e.label);
         }
         warned = false;
@@ -203,7 +208,7 @@ public class ButtonMapPage : MonoBehaviour
 
             var rb = go.transform.Find("Btn Reset").GetComponent<Button>();
             rb.onClick.RemoveAllListeners();
-            rb.onClick.AddListener(() => Assign(e.id, e.defaultPath));
+            rb.onClick.AddListener(() => Assign(e.id, ControlMap.Default(e.id)));
 
             rows.Add(row);
         }

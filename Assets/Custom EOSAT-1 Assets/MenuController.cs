@@ -18,6 +18,8 @@ public class MenuController : MonoBehaviour
     [Tooltip("The page shown whenever the menu opens.")]
     [SerializeField] string mainPage = "Main";
     [SerializeField] float openDistance = 1.1f;
+    [Tooltip("How far below eye level the menu's centre opens, in metres (negative = lower). The panel is tall, so its top is above this.")]
+    [SerializeField] float openHeightOffset = -0.22f;
 
     readonly Stack<string> history = new Stack<string>();
     string current = "";
@@ -26,7 +28,7 @@ public class MenuController : MonoBehaviour
 
     void OnEnable()
     {
-        PanelManager.PlaceInFront(GetComponent<GrabbablePanel>(), openDistance);
+        PanelManager.PlaceInFront(GetComponent<GrabbablePanel>(), openDistance, 0f, openHeightOffset);
         history.Clear();
         current = "";
         ShowPage(mainPage);

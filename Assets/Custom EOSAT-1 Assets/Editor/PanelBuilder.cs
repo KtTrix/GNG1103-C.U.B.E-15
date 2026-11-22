@@ -68,15 +68,18 @@ public static class PanelBuilder
 
         // Page_Options
         var opt = Page("Options", content, false);
-        Nav(opt, mc, 0, "Controls", "Controls");
-        Nav(opt, mc, 1, "Panels", "Panels");
-        Nav(opt, mc, 2, "Satellite Data", "SatelliteData");
-        Nav(opt, mc, 3, "Audio", "Audio");
-        Nav(opt, mc, 4, "Accessibility", "Accessibility");
+        // six entries, a little tighter than the main menu's rows
+        string[,] items = { { "Controls", "Controls" }, { "Panels", "Panels" }, { "Display", "Display" },
+                            { "Satellite Data", "SatelliteData" }, { "Audio", "Audio" }, { "Accessibility", "Accessibility" } };
+        for (int i = 0; i < items.GetLength(0); i++)
+        {
+            float top = 0.95f - i * 0.125f;
+            Nav(opt, mc, items[i, 0], items[i, 1], 32, new Vector2(0.1f, top - 0.10f), new Vector2(0.9f, top));
+        }
         BackButton(opt, mc);
 
         // placeholder pages, filled in later
-        foreach (var n in new[] { "Audio", "Accessibility" })
+        foreach (var n in new[] { "Audio" })
         {
             var pg = Page(n, content, false);
             var t = Text("Heading", pg, new Vector2(0.08f, 0.55f), new Vector2(0.92f, 0.9f), 40, TextAlignmentOptions.Center, CubeTheme.Dim);
@@ -88,6 +91,8 @@ public static class PanelBuilder
         PanelsPageBuild(content, mc);
         PanelFeelPage(content, mc);
         ControlsPage(content, mc);
+        AccessibilityPageBuild(content, mc);
+        DisplayPageBuild(content, mc);
         ButtonMapPageBuild(content, mc);
 
         // Page_ConnectionHelp
@@ -233,6 +238,52 @@ public static class PanelBuilder
         BackButton(pg, mc);
     }
 
+    // ── Display page: what is drawn in the space view ──
+    static void DisplayPageBuild(RectTransform content, MenuController mc)
+    {
+        var pg = Page("Display", content, false);
+        var act = pg.gameObject.AddComponent<SettingsActions>();
+
+        ChoiceRow(pg, "Satellite axes", "display.axes", 1, new[] { "Off", "On" }, 0.98f);
+        ChoiceRow(pg, "Earth axes", "display.earthaxes", 1, new[] { "Off", "On" }, 0.84f);
+        ChoiceRow(pg, "Satellite marker", "display.beacon", 1, new[] { "Off", "On" }, 0.70f);
+        var h = Text("Display hint", pg, new Vector2(0.08f, 0.30f), new Vector2(0.92f, 0.55f), 19, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        h.text = "Axes: X red, Y green, Z blue. The satellite's axes turn with it. The Earth's show the inertial frame (ECI): Z north pole, X vernal equinox.\n\nThe marker is a pulsing dot and a trail that keep the satellite easy to find when zoomed out. They fade as you come close.";
+
+        var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.axes");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.earthaxes");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "display.beacon");
+        BackButton(pg, mc);
+    }
+
+    // ── Accessibility page: eye height and recenter ──
+    static void AccessibilityPageBuild(RectTransform content, MenuController mc)
+    {
+        var pg = Page("Accessibility", content, false);
+        var act = pg.gameObject.AddComponent<SettingsActions>();
+
+        CompactSlider(pg, "Your height", "access.playerheight", 1f, 2.2f, 1.75f, 0.05f, "0.00", " m", 0.98f, true);
+        CompactSlider(pg, "Raise / lower view", "access.height", -0.5f, 1f, 0f, 0.05f, "0.00", " m", 0.84f, true);
+        ChoiceRow(pg, "Units", "access.units", 0, new[] { "Metres", "Feet", "Centimetres" }, 0.70f);
+
+        var mb = Button("Match my height", pg, new Vector2(0.1f, 0.46f), new Vector2(0.9f, 0.55f), 26, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(mb.onClick, act.MatchHeight);
+        var h1 = Text("Match hint", pg, new Vector2(0.08f, 0.395f), new Vector2(0.92f, 0.455f), 18, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        h1.text = "Sit or stand as you play, look straight ahead, then press.";
+
+        var rc = Button("Recenter view", pg, new Vector2(0.1f, 0.30f), new Vector2(0.9f, 0.39f), 26, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(rc.onClick, act.Recenter);
+        var h2 = Text("Recenter hint", pg, new Vector2(0.08f, 0.245f), new Vector2(0.92f, 0.295f), 18, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        h2.text = "Brings the hub or the space view back around you.";
+
+        var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.playerheight");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.height");
+        UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, "access.units");
+        BackButton(pg, mc);
+    }
+
     // ── Controls page: turning, move speed, which button grabs panels ──
     static void ControlsPage(RectTransform content, MenuController mc)
     {
@@ -273,7 +324,7 @@ public static class PanelBuilder
 
     // a slider row without a description line, so several fit on one page
     static void CompactSlider(RectTransform page, string label, string key, float min, float max, float def, float step,
-                              string format, string suffix, float yTop)
+                              string format, string suffix, float yTop, bool lengthUnits = false)
     {
         var row = Rect("Setting " + label, page, new Vector2(0f, yTop - 0.14f), new Vector2(1f, yTop));
         var l = Text("Label", row, new Vector2(0.06f, 0.55f), new Vector2(0.62f, 1f), 26, TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
@@ -292,6 +343,7 @@ public static class PanelBuilder
         so.FindProperty("displayScale").floatValue = 1f;
         so.FindProperty("format").stringValue = format;
         so.FindProperty("suffix").stringValue = suffix;
+        so.FindProperty("lengthUnits").boolValue = lengthUnits;
         so.FindProperty("slider").objectReferenceValue = slider;
         so.FindProperty("valueText").objectReferenceValue = v;
         so.ApplyModifiedPropertiesWithoutUndo();

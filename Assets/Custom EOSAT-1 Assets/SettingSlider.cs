@@ -20,6 +20,8 @@ public class SettingSlider : MonoBehaviour
     [SerializeField] float step = 0f;
     [SerializeField] string format = "0.00";
     [SerializeField] string suffix = "";
+    [Tooltip("The setting is a length in metres, shown in the unit chosen in Accessibility (setting access.units: 0 m, 1 ft, 2 cm). Overrides Display Scale, Format and Suffix.")]
+    [SerializeField] bool lengthUnits = false;
     [SerializeField] Slider slider;
     [SerializeField] TMP_Text valueText;
 
@@ -46,8 +48,12 @@ public class SettingSlider : MonoBehaviour
         Show(v);
     }
 
+    // metres per slider step, by unit: 5 cm, 0.1 ft, 1 cm
+    float Step => lengthUnits ? (CubeSettings.GetInt("access.units", 0) == 1 ? 0.03048f : CubeSettings.GetInt("access.units", 0) == 2 ? 0.01f : 0.05f) : step;
+
     void OnChanged(float v)
     {
+        float step = Step;
         if (step > 0f)
         {
             float q = Mathf.Clamp(Mathf.Round(v / step) * step, min, max);
@@ -58,10 +64,19 @@ public class SettingSlider : MonoBehaviour
         Show(v);
     }
 
-    void OnSettingChanged(string k) { if (k == key && slider != null) Load(); }
+    void OnSettingChanged(string k) { if ((k == key || (lengthUnits && k == "access.units")) && slider != null) Load(); }
 
     void Show(float v)
     {
-        if (valueText != null) valueText.text = (v * displayScale).ToString(format) + suffix;
+        if (valueText == null) return;
+        if (lengthUnits)
+        {
+            int u = CubeSettings.GetInt("access.units", 0);
+            valueText.text = u == 1 ? (v * 3.28084f).ToString("0.0") + " ft"
+                           : u == 2 ? (v * 100f).ToString("0") + " cm"
+                           : v.ToString("0.00") + " m";
+            return;
+        }
+        valueText.text = (v * displayScale).ToString(format) + suffix;
     }
 }

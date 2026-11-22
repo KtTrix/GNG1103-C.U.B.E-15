@@ -116,6 +116,9 @@ public class SpaceWorld : MonoBehaviour
     public bool HasSatellite => State != null && State.HasSatellite;
     public SpaceState State => frame != null ? frame.State : null;
     public float EarthRadiusUnits => earthRadiusUnits;
+    public SpaceFrame Frame => frame;
+    /// <summary>Where a position in km (Unity axes) sits in this world; the same mapping the satellite uses.</summary>
+    public Vector3 MapKm(Vector3 km, float earthRadiusKm) => MapSatellite(km, earthRadiusKm);
     public float SatelliteLengthUnits => SatLength;
 
     // In this object's local space:
@@ -149,6 +152,20 @@ public class SpaceWorld : MonoBehaviour
         // The detailed satellite model builds itself on the Satellite object; no manual setup needed.
         if (satellite != null && satellite.GetComponent<SatelliteModel>() == null)
             satellite.gameObject.AddComponent<SatelliteModel>();
+
+        // Body axes drawn on the satellite (X red, Y green, Z blue); switched in Options > Display.
+        if (satellite != null && satellite.GetComponent<SatelliteAxes>() == null)
+            satellite.gameObject.AddComponent<SatelliteAxes>();
+
+        // The Earth's axes (inertial frame) at the Earth's centre, fixed while the Earth turns.
+        var earthAxes = GetComponent<EarthAxes>();
+        if (earthAxes == null) earthAxes = gameObject.AddComponent<EarthAxes>();
+        earthAxes.Init(earthRadiusUnits);
+
+        // A pulsing dot and a trail that keep the satellite findable from far away; they fade out as you come close.
+        var beacon = GetComponent<SatelliteBeacon>();
+        if (beacon == null) beacon = gameObject.AddComponent<SatelliteBeacon>();
+        beacon.Init(this, satellite);
     }
 
     Transform FindInScene(string objectName)

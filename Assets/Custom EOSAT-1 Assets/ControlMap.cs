@@ -57,17 +57,20 @@ public static class ControlMap
         return null;
     }
 
+    /// <summary>The factory button for an action.</summary>
+    public static string Default(string id)
+    {
+        var e = Find(id);
+        return e == null ? None : e.defaultPath;
+    }
+
     public static string Get(string id)
     {
         var e = Find(id);
-        return e == null ? "" : CubeSettings.GetString("bind." + id, e.defaultPath);
+        return e == null ? "" : CubeSettings.GetString("bind." + id, Default(id));
     }
 
-    public static bool IsDefault(string id)
-    {
-        var e = Find(id);
-        return e != null && Get(id) == e.defaultPath;
-    }
+    public static bool IsDefault(string id) => Get(id) == Default(id);
 
     static string Ctrl(string path)
     {
@@ -122,8 +125,6 @@ public static class ControlMap
         return ha == "" || hb == "" || ha == hb;
     }
 
-    public static string Default(string id) { var e = Find(id); return e == null ? None : e.defaultPath; }
-
     /// <summary>Save a choice (the Button mapping page's Apply). Use None for no button.</summary>
     public static void Set(string id, string path) => CubeSettings.SetString("bind." + id, path);
 
@@ -176,8 +177,9 @@ public static class ControlMap
             else a.AddBinding(cur);
         }
 
-        if (cur == e.defaultPath && e.aliases != null)
-            foreach (string al in e.aliases) a.AddBinding(al.Replace("{HAND}", "{" + hand + "}"));
+        if (cur == Default(id) && e.aliases != null)
+            foreach (string al in e.aliases)
+                a.AddBinding(al.Replace("{HAND}", "{" + hand + "}"));
         if (extra != null) foreach (string x in extra) a.AddBinding(x);
 
         if (was) a.Enable();
