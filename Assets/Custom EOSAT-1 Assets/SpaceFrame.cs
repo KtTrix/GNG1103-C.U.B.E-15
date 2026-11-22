@@ -182,6 +182,9 @@ public class SpaceFrame : MonoBehaviour
     /// <summary>Changes whenever History changes, so a drawer knows when to redraw.</summary>
     public int HistoryVersion { get; private set; }
     int lastHistorySeq = -1;
+    int seenJumps;
+    int lastRebuildCount = -1, lastRebuildKey = -1;
+    readonly List<int> trailIdx = new List<int>();
 
     public SpaceState State { get; } = new SpaceState();
     public event Action<SpaceState> Updated;
@@ -200,13 +203,46 @@ public class SpaceFrame : MonoBehaviour
         if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
     }
 
-    void OnEnable() { TelemetryClient.SessionReset += ResetSession; }
-    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; }
+    void OnEnable() { TelemetryClient.SessionReset += ResetSession; Timeline.Seeked += RebuildHistoryFromTimeline; }
+    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; Timeline.Seeked -= RebuildHistoryFromTimeline; }
+
+    /// <summary>Raised after History was rebuilt from the recording (time was moved): drawers should redraw from scratch.</summary>
+    public static event Action HistoryRebuilt;
+
+    /// <summary>Time was moved on the Timeline: remake the path flown from the recording, up to the frame now on show.</summary>
+    void RebuildHistoryFromTimeline()
+    {
+        int cur = Timeline.CursorIndex;
+        if (cur < 0) return;
+        Timeline.CollectTrail(cur, historyMaxSamples, trailIdx);
+        int newestKey = trailIdx.Count > 0 ? trailIdx[trailIdx.Count - 1] : -1;
+        if (trailIdx.Count == lastRebuildCount && newestKey == lastRebuildKey && History.Count == trailIdx.Count) return;   // nothing changed
+        lastRebuildCount = trailIdx.Count; lastRebuildKey = newestKey;
+        History.Clear();
+        for (int k = 0; k < trailIdx.Count; k++)
+        {
+            int i = trailIdx[k];
+            var f = Timeline.FrameAt(i);
+            if (f == null) continue;
+            History.Add(new TrailSample
+            {
+                Eci = new Vector3((float)f.orbit.pos_eci_km[0], (float)f.orbit.pos_eci_km[1], (float)f.orbit.pos_eci_km[2]),
+                GmstDeg = f.earth != null ? (float)f.earth.gmst_deg : 0f,
+                SimSeconds = Timeline.SimAt(i),
+                Eclipse = f.sun != null && f.sun.in_eclipse,
+            });
+        }
+        var cf = Timeline.FrameAt(cur);
+        lastHistorySeq = cf != null ? cf.seq : -1;
+        HistoryVersion++;
+        HistoryRebuilt?.Invoke();
+    }
 
     /// <summary>A new link was made: forget the path flown and the carried-forward state, so everything starts fresh.</summary>
     void ResetSession()
     {
         History.Clear(); HistoryVersion++;
+        lastRebuildCount = -1; lastRebuildKey = -1;
         lastHistorySeq = -1;
         lastFrame = null;
         havePrev = false;
@@ -220,6 +256,13 @@ public class SpaceFrame : MonoBehaviour
 
     void Update()
     {
+        Timeline.TrailStepKm = historyStepKm;
+        if (seenJumps != Timeline.Jumps)
+        {
+            // Time was moved on purpose: the old frame-to-frame measurements no longer apply, so start them fresh.
+            seenJumps = Timeline.Jumps;
+            havePrev = false; smoothAdv = 0; simPerFrame = 0;
+        }
         var f = telemetry != null ? telemetry.Latest : null;
         if (f != null && !ReferenceEquals(f, lastFrame))
         {
@@ -227,14 +270,15 @@ public class SpaceFrame : MonoBehaviour
             if (Compute(f, earthRotationOffsetDeg, State))
             {
                 NoteRawFrame();
-                if (smoothBetweenFrames && State.HasSatellite) Extrapolate();    // continue from where the display was
+                if (smoothBetweenFrames && State.HasSatellite && !Timeline.Replaying) Extrapolate();    // continue from where the display was
                 Updated?.Invoke(State);
             }
             RecordHistory(f);
         }
         else if (lastFrame != null && smoothBetweenFrames && State.HasSatellite)
         {
-            Extrapolate();
+            // Time moved on purpose (dragging, paused, fast or backwards): show recorded frames exactly, no carrying forward.
+            if (!(Timeline.Replaying && (Timeline.Scrubbing || Mathf.Abs(Timeline.Rate - 1f) > 0.001f))) Extrapolate();
         }
         else if (lastFrame == null)
         {
@@ -326,8 +370,11 @@ public class SpaceFrame : MonoBehaviour
         if (f.orbit == null || f.orbit.pos_eci_km == null || f.orbit.pos_eci_km.Length < 3) return;
 
         // The stub restarted (its numbering began again): the old path no longer applies.
-        if (f.seq > 0 && f.seq < lastHistorySeq - 20) { History.Clear(); HistoryVersion++; }
+        if (f.seq > 0 && f.seq < lastHistorySeq - 20 && !Timeline.Replaying) { History.Clear(); HistoryVersion++; }
         lastHistorySeq = f.seq;
+
+        // Replaying and the clock just went back: this frame is earlier than the path so far; the rebuild will redo the path.
+        if (Timeline.Replaying && History.Count > 0 && Timeline.CurrentSim < History[History.Count - 1].SimSeconds - 0.5) return;
 
         var p = new Vector3((float)f.orbit.pos_eci_km[0], (float)f.orbit.pos_eci_km[1], (float)f.orbit.pos_eci_km[2]);
         if (History.Count > 0 && (p - History[History.Count - 1].Eci).magnitude < historyStepKm) return;

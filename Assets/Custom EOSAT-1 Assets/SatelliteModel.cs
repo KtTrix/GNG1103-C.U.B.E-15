@@ -157,9 +157,12 @@ public class SatelliteModel : MonoBehaviour
     }
 
     // ── updating ─────────────────────────────────────────────────────────────
+    int seenJumps; float snapUntil;
+
     void Update()
     {
         if (!built) return;
+        if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; snapUntil = Time.unscaledTime + 0.3f; }   // time moved: show the new state at once
         float target0, target1; bool antennaOutNow;
         var s = frame != null ? frame.State : null;
         if (s != null && s.HasSatellite)
@@ -179,6 +182,7 @@ public class SatelliteModel : MonoBehaviour
         wingFrac0 = Mathf.Lerp(wingFrac0, target0, k);
         wingFrac1 = Mathf.Lerp(wingFrac1, target1, k);
         antennaFrac = Mathf.MoveTowards(antennaFrac, antennaOutNow ? 1f : 0f, Time.deltaTime / Mathf.Max(0.05f, antennaSeconds));
+        if (Time.unscaledTime < snapUntil) { wingFrac0 = target0; wingFrac1 = target1; antennaFrac = antennaOutNow ? 1f : 0f; }
         ApplyPose(wingFrac0, wingFrac1, antennaFrac);
     }
 

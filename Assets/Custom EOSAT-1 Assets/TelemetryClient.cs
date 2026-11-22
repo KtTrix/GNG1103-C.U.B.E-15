@@ -138,9 +138,12 @@ public class TelemetryClient : MonoBehaviour
     [SerializeField] int logEveryNFrames = 0;
 
     /// <summary>Newest valid state frame, or null if none has arrived yet.</summary>
-    public StateFrame Latest { get; private set; }
-    /// <summary>Count of valid frames received (changes whenever Latest changes).</summary>
-    public int FramesReceived { get; private set; }
+    /// <summary>While the Timeline is replaying this is the recorded frame being shown instead of the live one.</summary>
+    public StateFrame Latest => Timeline.Replaying ? Timeline.ReplayFrame : liveLatest;
+    /// <summary>Count of valid frames received (changes whenever Latest changes, including while replaying).</summary>
+    public int FramesReceived => Timeline.Replaying ? 1000000 + Timeline.Serial : liveFrames;
+    StateFrame liveLatest;
+    int liveFrames;
     /// <summary>Lines that were not valid JSON.</summary>
     public int BadLines => Stats.ParseErrors;
     /// <summary>All the parse-test counters.</summary>
@@ -157,8 +160,9 @@ public class TelemetryClient : MonoBehaviour
     /// <summary>Why the last connection attempt failed (empty while connected).</summary>
     public string LastError => lastError;
     /// <summary>Seconds since the last valid frame (useful later for a "data fresh" indicator).</summary>
-    public float SecondsSinceLastFrame => FramesReceived == 0 ? float.PositiveInfinity
-                                                              : Time.unscaledTime - lastFrameTime;
+    public float SecondsSinceLastFrame => Timeline.Replaying ? 0f
+                                        : liveFrames == 0 ? float.PositiveInfinity
+                                                          : Time.unscaledTime - lastFrameTime;
 
     /// <summary>Turn the test files on or off while running. Off means no report or CSV files are written.</summary>
     public bool TestMode
@@ -237,8 +241,9 @@ public class TelemetryClient : MonoBehaviour
     void ResetSession()
     {
         lock (gate) { queue.Clear(); Stats.Reset(); }
-        Latest = null;
-        FramesReceived = 0;
+        liveLatest = null;
+        liveFrames = 0;
+        Timeline.Clear();
         lastSavedParsed = 0; lastAppliedSeq = 0; lastAckedSeq = -1;
         CloseLagLog();
         SessionReset?.Invoke();
@@ -556,15 +561,16 @@ public class TelemetryClient : MonoBehaviour
 
             if (!pos) return;   // the scene needs a position; without one the frame can't be applied
 
-            Latest = frame;
-            FramesReceived++;
+            liveLatest = frame;
+            liveFrames++;
+            Timeline.Record(frame);
             Stats.Applied++;
             lastLineGood = true;
             if (frame.seq > 0) lastAppliedSeq = frame.seq;
             if (frame.speed > 0) Stats.LastSpeed = frame.speed;
             lastFrameTime = Time.unscaledTime;
 
-            if (logEveryNFrames > 0 && FramesReceived % logEveryNFrames == 0)
+            if (logEveryNFrames > 0 && liveFrames % logEveryNFrames == 0)
                 Debug.Log($"[Telemetry] seq {frame.seq}  lat {frame.orbit.lat_deg:F2}  " +
                           $"lon {frame.orbit.lon_deg:F2}  alt {frame.orbit.alt_km:F0} km");
         }

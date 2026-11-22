@@ -171,6 +171,16 @@ public class SpaceWorld : MonoBehaviour
         if (sunVectors == null) sunVectors = gameObject.AddComponent<SunVectors>();
         sunVectors.Init(this, satellite, earthRadiusUnits);
 
+        // The Moon's night side (faint earthshine, so the dark part of the disc is still seen) and its near side toward the Earth.
+        var moonNight = GetComponent<MoonNightSide>();
+        if (moonNight == null) moonNight = gameObject.AddComponent<MoonNightSide>();
+        moonNight.Init(this, moon);
+
+        // The Earth's night side: dark, with the city lights, from the real Sun direction.
+        var earthNight = GetComponent<EarthNightSide>();
+        if (earthNight == null) earthNight = gameObject.AddComponent<EarthNightSide>();
+        earthNight.Init(this, earth);
+
         // A pulsing dot and a trail that keep the satellite findable from far away; they fade out as you come close.
         var beacon = GetComponent<SatelliteBeacon>();
         if (beacon == null) beacon = gameObject.AddComponent<SatelliteBeacon>();

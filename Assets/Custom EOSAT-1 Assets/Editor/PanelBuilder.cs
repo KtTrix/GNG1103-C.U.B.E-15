@@ -662,6 +662,64 @@ public static class PanelBuilder
         Save(root);
     }
 
+    // ── the time panel: recording bar, play / pause, rewind, fast-forward, LIVE ──
+    [MenuItem("CUBE15/Panels/New Time Panel")]
+    static void TimePanel()
+    {
+        var root = Build("time", "Time", "PLAYBACK", 1100f, 330f, out RectTransform content, out GrabbablePanel gp);
+        var body = Rect("Body", content, Vector2.zero, Vector2.one);
+
+        // the bar, with the little marker ticks laid over its track (under the handle)
+        var bar = MakeSlider("Time Bar", body, new Vector2(0.03f, 0.58f), new Vector2(0.97f, 0.96f));
+        bar.minValue = 0f; bar.maxValue = 1f; bar.value = 1f;
+        var layer = Rect("Markers", bar.transform, new Vector2(0f, 0.2f), new Vector2(1f, 0.8f));
+        layer.offsetMin = new Vector2(30f, 0f); layer.offsetMax = new Vector2(-30f, 0f);
+        layer.SetSiblingIndex(bar.transform.Find("Handle Slide Area").GetSiblingIndex());
+        bar.gameObject.AddComponent<TimeScrubber>();
+
+        var caption = Text("Caption", body, new Vector2(0.04f, 0.41f), new Vector2(0.96f, 0.57f), 28,
+                           TextAlignmentOptions.MidlineLeft, CubeTheme.Dim);
+        caption.text = "";
+
+        float y0 = 0.04f, y1 = 0.38f;
+        var rew = Button("<<", body, new Vector2(0.03f, y0), new Vector2(0.17f, y1), 38, CubeTheme.Button);
+        var play = Button("Pause", body, new Vector2(0.19f, y0), new Vector2(0.39f, y1), 34, CubeTheme.ButtonAccent);
+        var fwd = Button(">>", body, new Vector2(0.41f, y0), new Vector2(0.55f, y1), 38, CubeTheme.Button);
+        var rate = Text("Rate Text", body, new Vector2(0.56f, y0), new Vector2(0.66f, y1), 30,
+                        TextAlignmentOptions.Center, CubeTheme.Accent);
+        var time = Text("Time Text", body, new Vector2(0.67f, y0), new Vector2(0.85f, y1), 30,
+                        TextAlignmentOptions.Center, CubeTheme.Text);
+        var live = Button("LIVE", body, new Vector2(0.86f, y0), new Vector2(0.97f, y1), 30, CubeTheme.Button);
+
+        // a red dot beside the word LIVE (the page colours it: red when live, grey when behind)
+        var label = live.transform.Find("Label") as RectTransform;
+        label.offsetMin = new Vector2(34f, 0f);
+        var dotRt = Rect("Live Dot", live.transform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f));
+        dotRt.anchoredPosition = new Vector2(30f, 0f); dotRt.sizeDelta = new Vector2(20f, 20f);
+        var dot = dotRt.gameObject.AddComponent<Image>(); dot.raycastTarget = false;
+
+        var page = body.gameObject.AddComponent<TimeControlPage>();
+        UnityEventTools.AddPersistentListener(bar.onValueChanged, page.OnBar);
+        UnityEventTools.AddPersistentListener(rew.onClick, page.Rewind);
+        UnityEventTools.AddPersistentListener(play.onClick, page.TogglePlay);
+        UnityEventTools.AddPersistentListener(fwd.onClick, page.Faster);
+        UnityEventTools.AddPersistentListener(live.onClick, page.GoLive);
+
+        var pso = new SerializedObject(page);
+        pso.FindProperty("bar").objectReferenceValue = bar;
+        pso.FindProperty("markerLayer").objectReferenceValue = layer;
+        pso.FindProperty("timeText").objectReferenceValue = time;
+        pso.FindProperty("rateText").objectReferenceValue = rate;
+        pso.FindProperty("captionText").objectReferenceValue = caption;
+        pso.FindProperty("playLabel").objectReferenceValue = play.transform.Find("Label").GetComponent<TMP_Text>();
+        pso.FindProperty("liveLabel").objectReferenceValue = label.GetComponent<TMP_Text>();
+        pso.FindProperty("liveDot").objectReferenceValue = dot;
+        pso.ApplyModifiedPropertiesWithoutUndo();
+
+        root.SetActive(false);
+        Save(root);
+    }
+
     // ── the position panel ───────────────────────────────────────────────────
     [MenuItem("CUBE15/Panels/New Position Panel")]
     static void Position()

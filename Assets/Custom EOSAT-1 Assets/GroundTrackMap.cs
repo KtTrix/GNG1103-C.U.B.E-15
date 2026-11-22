@@ -85,11 +85,15 @@ public class GroundTrackMap : MonoBehaviour
     void OnEnable()
     {
         TelemetryClient.SessionReset += ResetTrack;
+        SpaceFrame.HistoryRebuilt += OnHistoryRebuilt;
         lastFrameCount = -1;
         if (points.Count > 0 || started) RebuildFromHistory();
     }
 
-    void OnDisable() { TelemetryClient.SessionReset -= ResetTrack; }
+    void OnDisable() { TelemetryClient.SessionReset -= ResetTrack; SpaceFrame.HistoryRebuilt -= OnHistoryRebuilt; }
+
+    // Time was moved on the Timeline: the path was remade from the recording, so redraw from it.
+    void OnHistoryRebuilt() { if (started || points.Count > 0) RebuildFromHistory(); }
 
     // A new link was made: forget the track and hide the marker until the first frame arrives.
     void ResetTrack()
@@ -133,6 +137,7 @@ public class GroundTrackMap : MonoBehaviour
         }
         if (points.Count > maxPoints) points.RemoveRange(0, points.Count - maxPoints);
         lastSampleTime = lastT;
+        if (lastT > double.NegativeInfinity) lastTime = lastT;
         lastSampleLon = prevLon;
         if (trackLine != null) trackLine.Refresh();
     }

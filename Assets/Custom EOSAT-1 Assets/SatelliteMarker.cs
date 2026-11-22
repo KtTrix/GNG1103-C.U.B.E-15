@@ -60,9 +60,14 @@ public class SatelliteMarker : MonoBehaviour
         snapNext = true;
         lastFrameCount = -1;
         TelemetryClient.SessionReset += ResetSession;
+        Timeline.Seeked += SnapToFrame;
     }
 
-    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; }
+    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; Timeline.Seeked -= SnapToFrame; }
+
+    // Time was moved: jump to the new position instead of gliding across the sky.
+    void SnapToFrame() { snapNext = true; }
+    int seenJumps; bool pendingSnap;
 
     // A new link was made: hide the dot until the first frame of the new run arrives.
     void ResetSession()
@@ -82,6 +87,7 @@ public class SatelliteMarker : MonoBehaviour
 
     void Update()
     {
+        if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; pendingSnap = true; }   // time was moved: jump to the next frame instead of gliding
         if (useTestPosition)
         {
             double lat = testLatDeg * Math.PI / 180.0;
@@ -98,6 +104,7 @@ public class SatelliteMarker : MonoBehaviour
             lastFrameCount = telemetry.FramesReceived;
             target = EciToLocal(telemetry.Latest);
             haveTarget = true;
+            if (pendingSnap) { snapNext = true; pendingSnap = false; }
         }
 
         if (rend != null) rend.enabled = haveTarget || !hideUntilData;

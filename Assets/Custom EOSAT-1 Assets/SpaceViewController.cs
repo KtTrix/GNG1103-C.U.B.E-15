@@ -131,6 +131,7 @@ public class SpaceViewController : MonoBehaviour
     Vector3 inertialOffsetDir;
     Quaternion inertialRot;
     Quaternion smoothedBody = Quaternion.identity;
+    int seenJumps; bool bodyPendingSnap; Quaternion lastBodyTarget = Quaternion.identity;
     bool bodyInit;
     Quaternion smoothedNominal = Quaternion.identity;
     float bodyReturn = 1f;     // 0 = held still by a spin warning, 1 = following the satellite
@@ -492,6 +493,10 @@ public class SpaceViewController : MonoBehaviour
                 Quaternion nominal = along.sqrMagnitude > 1e-10f
                     ? Quaternion.LookRotation(nomDown, along.normalized)
                     : target;
+                // Time was moved on the Timeline (live button, scrub): jump to the new view instead of swinging round to it.
+                if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; bodyPendingSnap = true; }
+                if (bodyPendingSnap && target != lastBodyTarget) { bodyInit = false; bodyPendingSnap = false; }
+                lastBodyTarget = target;
                 if (!bodyInit) { smoothedBody = target; smoothedNominal = nominal; bodyInit = true; }
                 float kS = bodyFixedSmoothing <= 0f ? 1f : 1f - Mathf.Exp(-bodyFixedSmoothing * dt);
                 smoothedBody = Quaternion.Slerp(smoothedBody, target, kS);

@@ -146,6 +146,19 @@ public class WarningMonitor : MonoBehaviour
             if (frame == null) frame = FindAnyObjectByType<SpaceFrame>();
         }
 
+        // Time is being moved on purpose (dragging the time bar, or playing faster / slower / backwards): stay quiet.
+        if (Timeline.SuppressWarnings)
+        {
+            linkGate.Off(); staleGate.Off(); invalidGate.Off(); implausibleGate.Off(); droppedGate.Off(); spinGate.Off();
+            invalidWin.Clear(); droppedWin.Clear();
+            rates.Clear();
+            spinSmoothed = 0f; SpinDegPerSec = 0f; havePrev = false;
+            FadeSphere(false, S);
+            if (active.Count > 0) { active.Clear(); Version++; }
+            lastMask = 0;
+            return;
+        }
+
         if (!CubeSettings.GetBool(EnabledKey, true))
         {
             linkGate.Off(); staleGate.Off(); invalidGate.Off(); implausibleGate.Off(); droppedGate.Off(); spinGate.Off();
@@ -164,10 +177,24 @@ public class WarningMonitor : MonoBehaviour
                    (implausibleGate.active ? 8 : 0) | (droppedGate.active ? 16 : 0) | (spinGate.active ? 32 : 0);
         if (mask != lastMask || now >= nextBuild)
         {
+            int added = mask & ~lastMask;
+            if (added != 0 && !Timeline.Replaying) MarkNew(added);
             lastMask = mask;
             nextBuild = now + 0.2f;
             Build(S);
         }
+    }
+
+    /// <summary>Put ticks on the time bar for warnings that just engaged (never while replaying the past).</summary>
+    void MarkNew(int added)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        if ((added & 32) != 0) Timeline.Mark(Timeline.MarkerKind.Warning, "High spin " + SpinDegPerSec.ToString("F1", inv) + " deg/s");
+        if ((added & 1) != 0) Timeline.Mark(Timeline.MarkerKind.Data, "Link lost");
+        if ((added & 2) != 0) Timeline.Mark(Timeline.MarkerKind.Data, "Stale data");
+        if ((added & 4) != 0) Timeline.Mark(Timeline.MarkerKind.Data, "Bad data");
+        if ((added & 8) != 0) Timeline.Mark(Timeline.MarkerKind.Data, "Implausible data");
+        if ((added & 16) != 0) Timeline.Mark(Timeline.MarkerKind.Data, "Frames lost");
     }
 
     // ── spin ─────────────────────────────────────────────────────────────────
@@ -261,7 +288,7 @@ public class WarningMonitor : MonoBehaviour
     // ── bad data ─────────────────────────────────────────────────────────────
     void TickData(float now, WarningSettings S)
     {
-        if (tel == null)
+        if (tel == null || Timeline.Replaying)        // recorded frames carry no link or data problems of their own
         {
             linkGate.Off(); staleGate.Off(); invalidGate.Off(); implausibleGate.Off(); droppedGate.Off();
             return;

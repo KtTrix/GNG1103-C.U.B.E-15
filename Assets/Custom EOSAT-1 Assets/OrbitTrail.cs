@@ -85,13 +85,19 @@ public class OrbitTrail : MonoBehaviour
         count -= drop;
     }
 
+    int seenJumps; float holdUntil;
+
     void OnEnable()
     {
         TelemetryClient.SessionReset += Clear;
+        SpaceFrame.HistoryRebuilt += OnHistoryRebuilt;
         if (rebuildFromHistory && points != null) RebuildFromHistory();
     }
 
-    void OnDisable() { TelemetryClient.SessionReset -= Clear; }
+    void OnDisable() { TelemetryClient.SessionReset -= Clear; SpaceFrame.HistoryRebuilt -= OnHistoryRebuilt; }
+
+    // Time was moved on the Timeline: redraw from the remade path.
+    void OnHistoryRebuilt() { if (rebuildFromHistory && points != null) RebuildFromHistory(); }
 
     /// <summary>Redraw the whole trail from the recorded path (kept by SpaceFrame, which is never switched off).</summary>
     void RebuildFromHistory()
@@ -145,6 +151,11 @@ public class OrbitTrail : MonoBehaviour
     void LateUpdate()
     {
         if (dot == null) return;
+        // Right after time was moved the dot has jumped but the trail is still being remade: don't draw a line to it meanwhile.
+        if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; holdUntil = Time.unscaledTime + 0.5f; }
+        if (Time.unscaledTime < holdUntil) return;
+        // While time is being dragged, paused-by-scrub or run at another speed the trail is remade from the recording instead.
+        if (Timeline.Replaying && (Timeline.Scrubbing || Mathf.Abs(Timeline.Rate - 1f) > 0.001f)) return;
 
         Vector3 p = transform.InverseTransformPoint(dot.position);
 
