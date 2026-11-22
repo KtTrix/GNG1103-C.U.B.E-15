@@ -26,7 +26,7 @@ public static class PanelBuilder
     [MenuItem("CUBE15/Panels/New Welcome Panel")]
     static void Welcome()
     {
-        var root = Build("welcome", "Welcome", "EOSAT-1 VR SIMULATOR", 1100f, 760f, out RectTransform content, out GrabbablePanel gp);
+        var root = Build("welcome", "Welcome", "EOSAT-1 VR SIMULATOR", 1300f, 1100f, out RectTransform content, out GrabbablePanel gp);
 
         var so = new SerializedObject(gp);
         so.FindProperty("placeInFrontOnStart").boolValue = true;
@@ -34,18 +34,62 @@ public static class PanelBuilder
 
         string dim = CubeTheme.HexString(CubeTheme.Dim);
 
-        var body = Text("Body", content, new Vector2(0.04f, 0.18f), new Vector2(0.96f, 0.97f), 32,
-                        TextAlignmentOptions.TopLeft, CubeTheme.Text);
-        body.text =
-            "<b>Welcome aboard.</b> This is a live view of the EOSAT-1 satellite simulator.\n\n" +
-            "<color=#" + dim + ">HUB</color>   The globe shows where the satellite is. Panels give its position and ground track.\n" +
-            "<color=#" + dim + ">SPACE</color>   Fly alongside the satellite and look at it from the Sun, Earth and more.";
+        // title
+        var title = Text("Welcome Title", content, new Vector2(0.03f, 0.915f), new Vector2(0.97f, 0.985f), 46,
+                         TextAlignmentOptions.Center, CubeTheme.Text);
+        title.text = "<b>Welcome to C.U.B.E.15's EOSAT-1 Simulator!</b>";
+        var sub = Text("Welcome Subtitle", content, new Vector2(0.03f, 0.875f), new Vector2(0.97f, 0.915f), 26,
+                       TextAlignmentOptions.Center, CubeTheme.Dim);
+        sub.text = "A live, in-headset view of the EOSAT-1 satellite, driven by the client's simulator.";
 
-        var btn = Button("Got it", content, new Vector2(0.62f, 0.04f), new Vector2(0.96f, 0.15f), 34, CubeTheme.ButtonAccent);
+        // what it does
+        var overview = WelcomeCard(content, "Overview Card", "WHAT IT DOES", new Vector2(0.03f, 0.64f), new Vector2(0.97f, 0.87f));
+        overview.text =
+            "<b>Live telemetry</b>   EOSAT-1's position, attitude, Sun and eclipse state, streamed from the simulator.\n" +
+            "<b>Hub</b>   A globe, data panels and a ground-track map around you. Grab, pin and arrange them.\n" +
+            "<b>Space view</b>   Fly out to the satellite: Overview, Orbit, Inertial, Body-fixed, Sun and Ground-station views.\n" +
+            "<b>Warnings</b>   A popup and a red sphere appear on a high spin or bad data.\n" +
+            "<b>Mixed reality</b>   Switch on passthrough to use it in your room.";
+
+        // the controllers picture
+        var headset = Text("Controllers Heading", content, new Vector2(0.03f, 0.595f), new Vector2(0.97f, 0.635f), 22,
+                           TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
+        headset.text = "<cspace=0.12em><b>YOUR CONTROLLERS</b></cspace>";      // filled in by the Welcome Guide
+        var pic = Rect("Controllers Picture", content, new Vector2(0.03f, 0.095f), new Vector2(0.97f, 0.59f));
+        var picBg = pic.gameObject.AddComponent<Image>();
+        picBg.color = CubeTheme.Inset; picBg.raycastTarget = false;
+        var diagram = Rect("Diagram", pic, Vector2.zero, Vector2.one);
+
+        var guide = root.AddComponent<WelcomeGuide>();
+        var gso = new SerializedObject(guide);
+        gso.FindProperty("diagram").objectReferenceValue = diagram;
+        gso.FindProperty("headsetText").objectReferenceValue = headset;
+        gso.ApplyModifiedPropertiesWithoutUndo();
+
+        // bottom row
+        var hint = Text("Reopen Hint", content, new Vector2(0.03f, 0.02f), new Vector2(0.68f, 0.085f), 22,
+                        TextAlignmentOptions.MidlineLeft, CubeTheme.Dim);
+        hint.text = "You can open this again any time from Options > Panels.";
+        var btn = Button("Got it", content, new Vector2(0.72f, 0.02f), new Vector2(0.97f, 0.085f), 34, CubeTheme.ButtonAccent);
         var actions = root.AddComponent<PanelActions>();
         UnityEventTools.AddStringPersistentListener(btn.onClick, actions.HidePanel, "welcome");
 
         Save(root);
+    }
+
+    // a rounded-looking card with a small heading and an auto-sizing body; returns the body text
+    static TMP_Text WelcomeCard(RectTransform parent, string name, string heading, Vector2 aMin, Vector2 aMax)
+    {
+        var card = Rect(name, parent, aMin, aMax);
+        var img = card.gameObject.AddComponent<Image>();
+        img.color = CubeTheme.Card; img.raycastTarget = false;
+        var h = Text("Heading", card, new Vector2(0.05f, 0.90f), new Vector2(0.95f, 0.99f), 22, TextAlignmentOptions.MidlineLeft, CubeTheme.Dim);
+        h.text = "<cspace=0.12em><b>" + heading + "</b></cspace>";
+        var body = Text("Body", card, new Vector2(0.05f, 0.03f), new Vector2(0.95f, 0.89f), 25, TextAlignmentOptions.TopLeft, CubeTheme.Text);
+        body.enableAutoSizing = true; body.fontSizeMin = 16; body.fontSizeMax = 25;
+        body.overflowMode = TextOverflowModes.Truncate;
+        body.lineSpacing = 4f;
+        return body;
     }
 
 
@@ -489,20 +533,26 @@ public static class PanelBuilder
         }
 
         // right-hand buttons
-        var conn = Button("Connect", pg, new Vector2(0.65f, 0.578f), new Vector2(0.96f, 0.692f), 30, CubeTheme.ButtonAccent);
+        // five buttons, top to bottom: Connect, Disconnect, USB cable, Clear, Instructions
+        const float bTop = 0.70f, bStep = 0.104f;
+        Vector2 BMin(int i) => new Vector2(0.65f, bTop - (i + 1) * bStep + 0.006f);
+        Vector2 BMax(int i) => new Vector2(0.96f, bTop - i * bStep - 0.006f);
+        var conn = Button("Connect", pg, BMin(0), BMax(0), 30, CubeTheme.ButtonAccent);
         UnityEventTools.AddPersistentListener(conn.onClick, sp.Connect);
-        var usb = Button("USB cable", pg, new Vector2(0.65f, 0.448f), new Vector2(0.96f, 0.562f), 28, CubeTheme.Button);
+        var disc = Button("Disconnect", pg, BMin(1), BMax(1), 28, CubeTheme.Button);
+        UnityEventTools.AddPersistentListener(disc.onClick, sp.Disconnect);
+        var usb = Button("USB cable", pg, BMin(2), BMax(2), 28, CubeTheme.Button);
         UnityEventTools.AddPersistentListener(usb.onClick, sp.UseUsb);
-        var clr = Button("Clear", pg, new Vector2(0.65f, 0.318f), new Vector2(0.96f, 0.432f), 30, CubeTheme.Button);
+        var clr = Button("Clear", pg, BMin(3), BMax(3), 30, CubeTheme.Button);
         UnityEventTools.AddPersistentListener(clr.onClick, sp.Clear);
 
         if (!asPanel)
         {
-            Nav(pg, mc, "Instructions", "ConnectionHelp", 22, new Vector2(0.65f, 0.188f), new Vector2(0.96f, 0.302f));
+            Nav(pg, mc, "Instructions", "ConnectionHelp", 22, BMin(4), BMax(4));
         }
         else
         {
-            var ins = Button("Instructions", pg, new Vector2(0.65f, 0.188f), new Vector2(0.96f, 0.302f), 22, CubeTheme.Button);
+            var ins = Button("Instructions", pg, BMin(4), BMax(4), 22, CubeTheme.Button);
             UnityEventTools.AddPersistentListener(ins.onClick, sp.ToggleHelp);
 
             // the instructions, drawn over the keypad until closed

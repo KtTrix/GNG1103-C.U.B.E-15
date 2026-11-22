@@ -59,6 +59,17 @@ public class SatelliteMarker : MonoBehaviour
         // satellite is now instead of sliding there across the globe, which looks like a straight-line jump.
         snapNext = true;
         lastFrameCount = -1;
+        TelemetryClient.SessionReset += ResetSession;
+    }
+
+    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; }
+
+    // A new link was made: hide the dot until the first frame of the new run arrives.
+    void ResetSession()
+    {
+        haveTarget = false;
+        lastFrameCount = -1;
+        snapNext = true;
     }
 
     /// <summary>Where a remembered position (ECI km plus the Earth's turn) sits in the globe's local space.</summary>

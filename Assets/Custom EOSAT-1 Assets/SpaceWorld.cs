@@ -157,6 +157,10 @@ public class SpaceWorld : MonoBehaviour
         if (satellite != null && satellite.GetComponent<SatelliteAxes>() == null)
             satellite.gameObject.AddComponent<SatelliteAxes>();
 
+        // Red warning sphere with an icon, shown in every view while the satellite spins too fast.
+        if (satellite != null && satellite.GetComponent<SpinWarningSphere>() == null)
+            satellite.gameObject.AddComponent<SpinWarningSphere>();
+
         // The Earth's axes (inertial frame) at the Earth's centre, fixed while the Earth turns.
         var earthAxes = GetComponent<EarthAxes>();
         if (earthAxes == null) earthAxes = gameObject.AddComponent<EarthAxes>();

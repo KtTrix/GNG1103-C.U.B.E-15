@@ -53,7 +53,8 @@ public class SatelliteAxes : MonoBehaviour
         if (S.GeometryStamp() != stamp) Rebuild();        // a value was edited: redraw
         if (root == null) return;
 
-        bool visible = on && Time.frameCount - born >= WarmUpFrames;
+        bool covered = WarningMonitor.Instance != null && WarningMonitor.Instance.AxesCovered;     // spinning too fast to read them
+        bool visible = on && !covered && Time.frameCount - born >= WarmUpFrames;
         if (root.activeSelf != visible) root.SetActive(visible);
         if (!visible) return;
 

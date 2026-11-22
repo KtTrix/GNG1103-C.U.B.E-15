@@ -106,7 +106,13 @@ public class MixedRealityMode : MonoBehaviour
         SetMixedReality(startInMixedReality);
     }
 
-    void OnTogglePressed(InputAction.CallbackContext ctx) { if (!ControlMap.Busy) ToggleMixedReality(); }
+    void OnTogglePressed(InputAction.CallbackContext ctx)
+    {
+        if (ControlMap.Busy || PanelManager.WelcomeOpen) return;
+        bool toMr = !IsMixedReality;
+        ToggleMixedReality();
+        HandToast.Show(toMr ? "Mixed reality" : "Virtual reality", ctx.control);
+    }
 
     /// <summary>Hook this up to a UI button later (for example on one of the panels).</summary>
     public void ToggleMixedReality() => SetMixedReality(!IsMixedReality);

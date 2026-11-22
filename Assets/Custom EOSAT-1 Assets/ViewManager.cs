@@ -88,7 +88,13 @@ public class ViewManager : MonoBehaviour
         toggleAction = null;
     }
 
-    void OnTogglePressed(InputAction.CallbackContext ctx) { if (!ControlMap.Busy) Toggle(); }
+    void OnTogglePressed(InputAction.CallbackContext ctx)
+    {
+        if (ControlMap.Busy || busy || PanelManager.WelcomeOpen) return;
+        bool toSpace = Current == View.Hub;
+        Toggle();
+        HandToast.Show(toSpace ? "Space view" : "Hub", ctx.control);      // a short message above the controller you pressed
+    }
 
     // ── public controls ──────────────────────────────────────────────────────
     public void Toggle()

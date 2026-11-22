@@ -145,7 +145,12 @@ public class TelemetryClient : MonoBehaviour
     public int BadLines => Stats.ParseErrors;
     /// <summary>All the parse-test counters.</summary>
     public TelemetryStats Stats { get; } = new TelemetryStats();
+    /// <summary>Raised when a new link is started (Connect / USB cable): everything that remembers the old run should forget it.</summary>
+    public static event Action SessionReset;
+
     public bool IsConnected => connected;
+    /// <summary>True after Disconnect() until the next SetEndpoint: the player chose to stop, so no reconnecting and no "no link" warning.</summary>
+    public bool UserDisconnected { get; private set; }
     /// <summary>The address currently in use.</summary>
     public string Host => host;
     public int Port => port;
@@ -204,7 +209,7 @@ public class TelemetryClient : MonoBehaviour
             port = PlayerPrefs.GetInt(SavedPortKey, port);
     }
 
-    void OnEnable() => StartWorker();
+    void OnEnable() { if (!UserDisconnected) StartWorker(); }
     void OnDisable() { StopWorker(); CloseLagLog(); }
 
     /// <summary>
@@ -216,6 +221,7 @@ public class TelemetryClient : MonoBehaviour
         StopWorker();
         host = newHost;
         port = newPort;
+        UserDisconnected = false;
         if (save)
         {
             PlayerPrefs.SetString(SavedHostKey, newHost);
@@ -223,8 +229,28 @@ public class TelemetryClient : MonoBehaviour
             PlayerPrefs.Save();
         }
         lastError = "";
-        lock (gate) queue.Clear();
+        ResetSession();
         if (isActiveAndEnabled) StartWorker();
+    }
+
+    /// <summary>Forget the last run completely (latest frame, counters), then tell the rest of the app to do the same.</summary>
+    void ResetSession()
+    {
+        lock (gate) { queue.Clear(); Stats.Reset(); }
+        Latest = null;
+        FramesReceived = 0;
+        lastSavedParsed = 0; lastAppliedSeq = 0; lastAckedSeq = -1;
+        CloseLagLog();
+        SessionReset?.Invoke();
+    }
+
+    /// <summary>Close the link and stay closed (no automatic retry) until SetEndpoint is called, which Connect / USB Cable do.</summary>
+    public void Disconnect()
+    {
+        UserDisconnected = true;
+        StopWorker();
+        lastError = "";
+        lock (gate) queue.Clear();
     }
 
     /// <summary>Zero all the parse-test counters and start counting again.</summary>

@@ -87,15 +87,19 @@ public class OrbitTrail : MonoBehaviour
 
     void OnEnable()
     {
+        TelemetryClient.SessionReset += Clear;
         if (rebuildFromHistory && points != null) RebuildFromHistory();
     }
+
+    void OnDisable() { TelemetryClient.SessionReset -= Clear; }
 
     /// <summary>Redraw the whole trail from the recorded path (kept by SpaceFrame, which is never switched off).</summary>
     void RebuildFromHistory()
     {
         if (frame == null) frame = FindAnyObjectByType<SpaceFrame>();
         if (marker == null && dot != null) marker = dot.GetComponent<SatelliteMarker>();
-        if (frame == null || marker == null || frame.History.Count == 0) return;
+        if (frame == null || marker == null) return;
+        if (frame.History.Count == 0) { Clear(); return; }        // a new link wiped the history while the hub was off
 
         var h = frame.History;
         Clear();

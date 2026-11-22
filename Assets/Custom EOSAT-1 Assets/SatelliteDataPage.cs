@@ -1,12 +1,13 @@
 using System.Net;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 /// <summary>
 /// The menu's Satellite Data page: shows the link status and lets you type the simulator PC's IP address and port
 /// on a keypad. Put it on Page_SatelliteData. Everything it needs is an ordinary object under the page; the buttons call
-/// its public methods (Press, Backspace, Clear, Connect, UseUsb, SelectIp, SelectPort), set up by CUBE15 > Panels > Build Menu.
+/// its public methods (Press, Backspace, Clear, Connect, Disconnect, UseUsb, SelectIp, SelectPort), set up by CUBE15 > Panels > Build Menu.
 /// The address and port are remembered by TelemetryClient for the next run.
 /// </summary>
 public class SatelliteDataPage : MonoBehaviour
@@ -31,12 +32,50 @@ public class SatelliteDataPage : MonoBehaviour
 
     void OnEnable()
     {
+        EnsureDisconnectButton();
         if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
         if (telemetry != null) { ip = telemetry.Host; port = telemetry.Port.ToString(); }
         editingPort = false;
         message = "";
         if (helpOverlay != null) helpOverlay.SetActive(false);
         Refresh();
+    }
+
+    // The menu's copy of this page was built before Disconnect existed. If this page has no Disconnect button, make one
+    // from the Clear button and lay the five buttons out like the stand-alone panel (Connect, Disconnect, USB, Clear, Instructions).
+    void EnsureDisconnectButton()
+    {
+        Button clear = null, conn = null, usb = null, ins = null;
+        foreach (var b in GetComponentsInChildren<Button>(true))
+        {
+            string n = b.name.ToLowerInvariant();
+            if (n.Contains("disconnect")) return;
+            if (n.EndsWith("clear")) clear = b;
+            else if (n.EndsWith("connect")) conn = b;
+            else if (n.Contains("usb")) usb = b;
+            else if (n.Contains("instructions")) ins = b;
+        }
+        if (clear == null || conn == null) return;
+
+        var go = Instantiate(clear.gameObject, clear.transform.parent);
+        go.name = clear.name.ToLowerInvariant().Contains("clear") ? clear.name.Replace("Clear", "Disconnect").Replace("clear", "Disconnect") : "Btn Disconnect";
+        var disc = go.GetComponent<Button>();
+        for (int i = 0; i < disc.onClick.GetPersistentEventCount(); i++)
+            disc.onClick.SetPersistentListenerState(i, UnityEventCallState.Off);   // the copy must not also "Clear"
+        disc.onClick.AddListener(Disconnect);
+        var label = go.GetComponentInChildren<TMP_Text>(true);
+        if (label != null) label.text = "Disconnect";
+
+        var order = new[] { conn, disc, usb, clear, ins };
+        const float top = 0.70f, step = 0.104f;
+        for (int i = 0; i < order.Length; i++)
+        {
+            if (order[i] == null) continue;
+            var rt = (RectTransform)order[i].transform;
+            rt.anchorMin = new Vector2(0.65f, top - (i + 1) * step + 0.006f);
+            rt.anchorMax = new Vector2(0.96f, top - i * step - 0.006f);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+        }
     }
 
     void Update()
@@ -85,6 +124,15 @@ public class SatelliteDataPage : MonoBehaviour
         Connect();
     }
 
+    /// <summary>Stop the link and leave it stopped until Connect or USB Cable is pressed.</summary>
+    public void Disconnect()
+    {
+        if (telemetry == null) { message = "No Telemetry object found."; Refresh(); return; }
+        telemetry.Disconnect();
+        message = "Disconnected. Press Connect to link again.";
+        Refresh();
+    }
+
     public void Connect()
     {
         if (telemetry == null) { message = "No Telemetry object found."; Refresh(); return; }
@@ -125,12 +173,14 @@ public class SatelliteDataPage : MonoBehaviour
         if (statusText != null && telemetry != null)
         {
             string badge; Color c;
-            if (!telemetry.IsConnected) { badge = "NO LINK"; c = CubeTheme.Bad; }
+            if (telemetry.UserDisconnected) { badge = "DISCONNECTED"; c = CubeTheme.Dim; }
+            else if (!telemetry.IsConnected) { badge = "NO LINK"; c = CubeTheme.Bad; }
             else if (telemetry.FramesReceived == 0) { badge = "WAITING"; c = CubeTheme.Warn; }
             else if (telemetry.SecondsSinceLastFrame > staleAfterSeconds) { badge = "STALE"; c = CubeTheme.Warn; }
             else { badge = "LIVE"; c = CubeTheme.Ok; }
 
-            string detail = telemetry.IsConnected
+            string detail = telemetry.UserDisconnected ? "link closed by you"
+                : telemetry.IsConnected
                 ? "connected, receiving data"
                 : (string.IsNullOrEmpty(telemetry.LastError) ? "connecting..." : telemetry.LastError + " (retrying)");
 

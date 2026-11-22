@@ -1,0 +1,76 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e14b5055d4b18b041954195d9bdd154c, type: 3}
+  m_Name: WarningSettings
+  m_EditorClassIdentifier: Assembly-CSharp::WarningSettings
+  spin:
+    enabled: 1
+    triggerSeconds: 0
+    clearSeconds: 0.5
+  spinWarnDegPerSec: 30
+  spinInSimTime: 0
+  spinRelativeToOrbit: 1
+  spinSampleSeconds: 0.05
+  spinSamples: 3
+  spinWindowSeconds: 0.5
+  sphereColor: {r: 1, g: 0.5432069, b: 0.10196078, a: 1}
+  sphereOpacity: 0.5
+  sphereRim: 1.2
+  sphereRadius: 0.75
+  sphereMinAngleDeg: 5
+  sphereMaxSizeMultiplier: 2
+  sphereFadeInSeconds: 0.15
+  sphereFadeOutSeconds: 1
+  spherePulseDepth: 0.12
+  spherePulseSeconds: 1.2
+  iconSizeFraction: 0.4
+  axesCoverSpinDegPerSec: 40
+  sphereCoverOpacity: 0.92
+  freezeBodyView: 1
+  bodyReturnSeconds: 2
+  noLink:
+    enabled: 1
+    triggerSeconds: 1
+    clearSeconds: 1
+  stale:
+    enabled: 1
+    triggerSeconds: 0
+    clearSeconds: 1
+  staleAfterSeconds: 2
+  invalid:
+    enabled: 1
+    triggerSeconds: 0
+    clearSeconds: 5
+  invalidWindowSeconds: 10
+  invalidCountLimit: 3
+  implausible:
+    enabled: 1
+    triggerSeconds: 1
+    clearSeconds: 3
+  altitudeMinKm: 100
+  altitudeMaxKm: 3000
+  speedMinKmS: 5
+  speedMaxKmS: 10
+  quaternionTolerance: 0.05
+  dropped:
+    enabled: 1
+    triggerSeconds: 0
+    clearSeconds: 5
+  droppedWindowSeconds: 10
+  droppedCountLimit: 3
+  framesBehindLimit: 30
+  popupEnabled: 1
+  popupWidthMm: 200
+  popupAboveControllerM: 0.1
+  popupFallbackOffset: {x: -0.22, y: -0.3, z: 0.45}
+  popupDangerColor: {r: 0.94, g: 0.33, b: 0.31, a: 1}
+  popupWarnColor: {r: 0.91, g: 0.64, b: 0.1, a: 1}

@@ -132,6 +132,8 @@ public class SpaceViewController : MonoBehaviour
     Quaternion inertialRot;
     Quaternion smoothedBody = Quaternion.identity;
     bool bodyInit;
+    Quaternion smoothedNominal = Quaternion.identity;
+    float bodyReturn = 1f;     // 0 = held still by a spin warning, 1 = following the satellite
 
     // Overview camera sits slightly above the Earth's equator, looking at its centre.
     static readonly Vector3 OverviewDirection = new Vector3(0f, 0.26f, -0.97f).normalized;
@@ -403,10 +405,10 @@ public class SpaceViewController : MonoBehaviour
         else if (Mathf.Abs(left.x) < 0.3f) stationLatched = false;
 
         // A = previous view, B = next view
-        if (!ControlMap.Busy)
+        if (!ControlMap.Busy && !PanelManager.WelcomeOpen)
         {
-            if (prevAction.WasPressedThisFrame()) PreviousView();
-            if (nextAction.WasPressedThisFrame()) NextView();
+            if (prevAction.WasPressedThisFrame()) { PreviousView(); HandToast.Show(CurrentLabel, prevAction.activeControl); }
+            if (nextAction.WasPressedThisFrame()) { NextView(); HandToast.Show(CurrentLabel, nextAction.activeControl); }
         }
 
         var kb = Keyboard.current;
@@ -482,11 +484,27 @@ public class SpaceViewController : MonoBehaviour
                 // Body +Z (imager / nadir) is Unity local +y. Up on screen = body +X (along-track, local +x).
                 Quaternion target = w.rotation * world.SatRotation *
                                     Quaternion.LookRotation(Vector3.up, Vector3.right);
-                if (!bodyInit) { smoothedBody = target; bodyInit = true; }
-                smoothedBody = bodyFixedSmoothing <= 0f
-                    ? target
-                    : Quaternion.Slerp(smoothedBody, target, 1f - Mathf.Exp(-bodyFixedSmoothing * dt));
-                rot = smoothedBody;
+                // The same view if the satellite were flying its normal Earth-pointing attitude: looking at the Earth's centre,
+                // up on screen = along the track. Used while the satellite tumbles so the view stays pointed at the Earth.
+                Vector3 nomDown = nadir;                                         // world-space direction to the Earth's centre
+                Vector3 vel = world.Frame != null ? w.TransformDirection(world.Frame.State.SatVelKmS) : Vector3.zero;
+                Vector3 along = Vector3.ProjectOnPlane(vel, nomDown);
+                Quaternion nominal = along.sqrMagnitude > 1e-10f
+                    ? Quaternion.LookRotation(nomDown, along.normalized)
+                    : target;
+                if (!bodyInit) { smoothedBody = target; smoothedNominal = nominal; bodyInit = true; }
+                float kS = bodyFixedSmoothing <= 0f ? 1f : 1f - Mathf.Exp(-bodyFixedSmoothing * dt);
+                smoothedBody = Quaternion.Slerp(smoothedBody, target, kS);
+                smoothedNominal = Quaternion.Slerp(smoothedNominal, nominal, kS);
+
+                var wm = WarningMonitor.Instance;
+                var WS = WarningSettings.Instance;
+                bool frozen = wm != null && WS.freezeBodyView && wm.SpinWarningActive;
+                if (frozen) bodyReturn = 0f;                       // high spin: hold the nominal, Earth-pointing view
+                else bodyReturn = WS.bodyReturnSeconds <= 0f ? 1f : Mathf.Min(1f, bodyReturn + dt / WS.bodyReturnSeconds);
+                float ease = bodyReturn * bodyReturn * (3f - 2f * bodyReturn);
+                Quaternion shown = bodyReturn >= 1f ? smoothedBody : Quaternion.Slerp(smoothedNominal, smoothedBody, ease);
+                rot = shown;
                 pos = sat + rot * (Vector3.back * dist);     // backed off, behind the viewing direction
                 poseFocus = sat; poseOrbits = true;
                 return true;

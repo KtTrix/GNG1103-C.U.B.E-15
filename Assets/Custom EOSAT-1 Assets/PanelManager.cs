@@ -192,6 +192,12 @@ public static class PanelManager
             Register(p);
     }
 
+    /// <summary>True while the welcome panel is on screen. The view / mixed-reality / next-view buttons do nothing then, so the player can try the controllers.</summary>
+    public static bool WelcomeOpen
+    {
+        get { var p = Get("welcome"); return p != null && p.gameObject.activeInHierarchy; }
+    }
+
     public static GrabbablePanel Get(string id)
     {
         foreach (var p in panels) if (p != null && p.PanelId == id) return p;

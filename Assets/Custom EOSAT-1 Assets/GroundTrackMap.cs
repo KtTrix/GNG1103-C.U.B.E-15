@@ -82,8 +82,20 @@ public class GroundTrackMap : MonoBehaviour
     // meanwhile, so redraw the track from it: the line carries on without gaps or straight jumps.
     void OnEnable()
     {
+        TelemetryClient.SessionReset += ResetTrack;
         lastFrameCount = -1;
         if (points.Count > 0 || started) RebuildFromHistory();
+    }
+
+    void OnDisable() { TelemetryClient.SessionReset -= ResetTrack; }
+
+    // A new link was made: forget the track and hide the marker until the first frame arrives.
+    void ResetTrack()
+    {
+        ClearTrack();
+        lastFrameCount = -1;
+        lastTime = double.NegativeInfinity;
+        if (marker != null) marker.gameObject.SetActive(false);
     }
 
     bool started;
@@ -91,7 +103,8 @@ public class GroundTrackMap : MonoBehaviour
     void RebuildFromHistory()
     {
         if (spaceFrame == null) spaceFrame = FindAnyObjectByType<SpaceFrame>();
-        if (spaceFrame == null || spaceFrame.History.Count < 2) return;
+        if (spaceFrame == null) return;
+        if (spaceFrame.History.Count < 2) { ClearTrack(); return; }
 
         points.Clear();
         var h = spaceFrame.History;

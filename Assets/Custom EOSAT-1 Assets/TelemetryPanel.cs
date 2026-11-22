@@ -65,6 +65,16 @@ public class TelemetryPanel : MonoBehaviour
         if (valuesText != null) valuesText.text = "Waiting for data...";
     }
 
+    void OnEnable() { TelemetryClient.SessionReset += ResetSession; }
+    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; }
+
+    // A new link was made: drop the old values until the first frame of the new run arrives.
+    void ResetSession()
+    {
+        lastFrame = -1;
+        if (valuesText != null) valuesText.text = "Waiting for data...";
+    }
+
     void Update()
     {
         if (telemetry == null) return;

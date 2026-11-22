@@ -200,6 +200,24 @@ public class SpaceFrame : MonoBehaviour
         if (telemetry == null) telemetry = FindAnyObjectByType<TelemetryClient>();
     }
 
+    void OnEnable() { TelemetryClient.SessionReset += ResetSession; }
+    void OnDisable() { TelemetryClient.SessionReset -= ResetSession; }
+
+    /// <summary>A new link was made: forget the path flown and the carried-forward state, so everything starts fresh.</summary>
+    void ResetSession()
+    {
+        History.Clear(); HistoryVersion++;
+        lastHistorySeq = -1;
+        lastFrame = null;
+        havePrev = false;
+        smoothAdv = 0; simPerFrame = 0; frameInterval = 0.1;
+        rawPos = rawVel = Vector3.zero;
+        rawRot = prevRot = Quaternion.identity;
+        State.HasSatellite = false; State.Valid = false;
+        State.SatRotation = Quaternion.identity;
+        State.Seq = 0;
+    }
+
     void Update()
     {
         var f = telemetry != null ? telemetry.Latest : null;
@@ -235,6 +253,10 @@ public class SpaceFrame : MonoBehaviour
     {
         float now = Time.unscaledTime;
         prevRot = havePrev ? rawRot : State.SatRotation;
+        // q and -q are the same turn. If the sender's sign flips between frames, turn the new one back so the in-between
+        // blend takes the short way round instead of a full extra revolution (that was a brief spin spike once per orbit).
+        if (Quaternion.Dot(prevRot, State.SatRotation) < 0f)
+            State.SatRotation = new Quaternion(-State.SatRotation.x, -State.SatRotation.y, -State.SatRotation.z, -State.SatRotation.w);
         if (havePrev)
         {
             double dReal = now - rawReal;
