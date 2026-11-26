@@ -29,8 +29,12 @@ public static class PanelLocomotionLock
 
     const BindingFlags Fields = BindingFlags.NonPublic | BindingFlags.Instance;
 
+    /// <summary>On while a Space View view is being edited: both thumbsticks only drive the view, not walking or turning.</summary>
+    public static bool ForceHold;
+
     public static void Tick(bool leftHeld, bool rightHeld, bool disableTeleport)
     {
+        if (ForceHold) { leftHeld = true; rightHeld = true; }
         Refresh();
 
         foreach (var e in entries)

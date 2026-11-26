@@ -42,6 +42,11 @@ public class ViewManager : MonoBehaviour
     [Header("Test buttons")]
     [SerializeField] bool enableTestButtons = true;
 
+    public static ViewManager Instance { get; private set; }
+
+    /// <summary>The space scene's skybox, kept for the space view view cameras (they draw the space world while you are in the hub).</summary>
+    public Material SpaceSkybox { get; private set; }
+
     public View Current { get; private set; } = View.Hub;
     public bool Busy => busy;
     public event Action<View> ViewChanged;
@@ -58,6 +63,7 @@ public class ViewManager : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         hubScene = gameObject.scene;
     }
 
@@ -113,6 +119,81 @@ public class ViewManager : MonoBehaviour
         if (!busy && Current != View.Hub) StartCoroutine(GoHub());
     }
 
+    // ── the space scene in the background (hub space view panels) ─────────────
+    // While a Space View panel is open in the hub, the space scene stays loaded (up at spaceOrigin, on layer 31, which the
+    // headset camera does not draw) so the panel's cameras can draw it. SpaceViewController is told to leave the headset alone.
+    bool bgWanted;
+    SpaceLayerKeeper keeper;
+
+    bool SpaceLoaded => spaceScene.IsValid() && spaceScene.isLoaded;
+
+    public void WantBackgroundSpace(bool want)
+    {
+        bgWanted = want;
+        if (Current == View.Hub && !busy) StartCoroutine(RunSync());
+    }
+
+    IEnumerator RunSync()
+    {
+        busy = true;
+        for (int i = 0; i < 3 && bgWanted != SpaceLoaded; i++)
+        {
+            if (bgWanted) yield return LoadBackground();
+            else yield return UnloadBackground();
+        }
+        busy = false;
+    }
+
+    IEnumerator LoadBackground()
+    {
+        SpaceViewController.NextStartInactive = true;
+        var op = SceneManager.LoadSceneAsync(spaceSceneName, LoadSceneMode.Additive);
+        if (op == null)
+        {
+            SpaceViewController.NextStartInactive = false;
+            Debug.LogError("[ViewManager] Could not load scene '" + spaceSceneName + "' for the space view.");
+            bgWanted = false;
+            yield break;
+        }
+        yield return op;
+        spaceScene = SceneManager.GetSceneByName(spaceSceneName);
+
+        // Read the space scene's skybox (the active scene's settings are the live ones), then hand "active" back to the hub.
+        SceneManager.SetActiveScene(spaceScene);
+        SpaceSkybox = RenderSettings.skybox;
+        SceneManager.SetActiveScene(hubScene);
+
+        PlaceWorld();
+        MainCameraSeesSpace(false);
+        StartKeeper();
+        Debug.Log("[ViewManager] space scene loaded in the background for the space view");
+    }
+
+    IEnumerator UnloadBackground()
+    {
+        if (!SpaceLoaded) yield break;
+        MainCameraSeesSpace(false);
+        if (keeper != null) { Destroy(keeper); keeper = null; }
+        yield return SceneManager.UnloadSceneAsync(spaceScene);
+        Debug.Log("[ViewManager] background space scene unloaded");
+    }
+
+    void StartKeeper()
+    {
+        if (keeper == null) keeper = gameObject.AddComponent<SpaceLayerKeeper>();
+        keeper.Scene = spaceScene;
+        foreach (var root in spaceScene.GetRootGameObjects()) SpaceCam.ApplyLayer(root.transform);     // at once, so the headset never sees it
+    }
+
+    /// <summary>The headset draws the space layer only while you are in the space view.</summary>
+    void MainCameraSeesSpace(bool sees)
+    {
+        if (rig == null) rig = FindAnyObjectByType<XROrigin>();
+        var cam = rig != null ? rig.Camera : Camera.main;
+        if (cam == null) return;
+        cam.cullingMask = sees ? (cam.cullingMask | SpaceCam.Mask) : (cam.cullingMask & ~SpaceCam.Mask);
+    }
+
     // ── switching ────────────────────────────────────────────────────────────
     IEnumerator GoSpace()
     {
@@ -120,22 +201,32 @@ public class ViewManager : MonoBehaviour
         PanelManager.StoreView("Hub");      // the hub's panels are put away; they come back when you return
         SaveRigAndFreeze();      // before the space scene exists, so nothing moves the rig first
 
-        var op = SceneManager.LoadSceneAsync(spaceSceneName, LoadSceneMode.Additive);
-        if (op == null)
+        if (!SpaceLoaded)
         {
-            Debug.LogError("[ViewManager] Could not load scene '" + spaceSceneName +
-                           "'. Is it in File > Build Profiles > Scene List, spelled exactly like that?");
-            RestoreRigAndUnfreeze();
-            PanelManager.RestoreView("Hub", false);
-            busy = false;
-            yield break;
+            SpaceViewController.NextStartInactive = false;
+            var op = SceneManager.LoadSceneAsync(spaceSceneName, LoadSceneMode.Additive);
+            if (op == null)
+            {
+                Debug.LogError("[ViewManager] Could not load scene '" + spaceSceneName +
+                               "'. Is it in File > Build Profiles > Scene List, spelled exactly like that?");
+                RestoreRigAndUnfreeze();
+                PanelManager.RestoreView("Hub", false);
+                busy = false;
+                yield break;
+            }
+            yield return op;
+            spaceScene = SceneManager.GetSceneByName(spaceSceneName);
         }
-        yield return op;
 
-        spaceScene = SceneManager.GetSceneByName(spaceSceneName);
         SceneManager.SetActiveScene(spaceScene);      // so this scene's skybox and lighting are used
+        if (SpaceSkybox == null) SpaceSkybox = RenderSettings.skybox;
         if (hubContent != null) hubContent.SetActive(false);
         PlaceWorld();
+        MainCameraSeesSpace(true);
+        if (keeper != null) { Destroy(keeper); keeper = null; }
+
+        var ctl = FindAnyObjectByType<SpaceViewController>();
+        if (ctl != null) ctl.SetRigControl(true);
 
         PanelManager.RestoreView("Space", true);     // whatever you had open in space last time (nothing, the first time)
         Current = View.Space;
@@ -150,14 +241,22 @@ public class ViewManager : MonoBehaviour
         PanelManager.StoreView("Space");    // space's panels are put away, relative to the rig
         if (hubContent != null) hubContent.SetActive(true);
         SceneManager.SetActiveScene(hubScene);
+        MainCameraSeesSpace(false);
 
-        if (spaceScene.IsValid() && spaceScene.isLoaded)
-            yield return SceneManager.UnloadSceneAsync(spaceScene);
+        var ctl = SpaceLoaded ? FindAnyObjectByType<SpaceViewController>() : null;
+        if (ctl != null) ctl.SetRigControl(false);          // the headset is no longer flown by the space view
 
         RestoreRigAndUnfreeze();
-        PanelManager.RestoreView("Hub", false);      // the hub's panels, exactly where you left them
+        PanelManager.RestoreView("Hub", false);      // the hub's panels, exactly where you left them (space view panels ask for the space scene again)
 
         Current = View.Hub;
+
+        // Keep the space scene only if a space view panel is open; otherwise unload it as before.
+        if (SpaceLoaded)
+        {
+            if (bgWanted) StartKeeper();
+            else yield return UnloadBackground();
+        }
         ViewChanged?.Invoke(Current);
         Debug.Log("[ViewManager] view = Hub");
         busy = false;

@@ -24,7 +24,7 @@ public static class ControlMap
         new Entry { id = "menu",        label = "Open menu",         defaultPath = "<XRController>{LeftHand}/{Menu}",
                     aliases = new[] { "<XRController>{LeftHand}/menu", "<XRController>{LeftHand}/menuButton" } },
         new Entry { id = "view",        label = "Hub / space",       defaultPath = "<XRController>{LeftHand}/secondaryButton" },
-        new Entry { id = "passthrough", label = "Passthrough",       defaultPath = "<XRController>{LeftHand}/{PrimaryButton}" },
+        new Entry { id = "passthrough", label = "Mixed reality",      defaultPath = None },   // unassigned by default: the main menu has a button for it
         new Entry { id = "prevview",    label = "Previous view",     defaultPath = "<XRController>{RightHand}/primaryButton" },
         new Entry { id = "nextview",    label = "Next view",         defaultPath = "<XRController>{RightHand}/secondaryButton" },
         new Entry { id = "grab",        label = "Grab a panel",      defaultPath = "<XRController>/gripPressed", bothHands = true },

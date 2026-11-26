@@ -53,6 +53,9 @@ public class SunVectors : MonoBehaviour
         stamp = S.GeometryStamp();
     }
 
+    void OnEnable() { SpaceCam.PreRender += LateUpdate; }
+    void OnDisable() { SpaceCam.PreRender -= LateUpdate; }
+
     void LateUpdate()
     {
         if (world == null) return;
@@ -86,15 +89,20 @@ public class SunVectors : MonoBehaviour
         if (!showSat) return;
 
         float lossy = Mathf.Max(1e-7f, transform.lossyScale.x);
-        float natural = S.sunSatLength * Mathf.Max(1e-7f, satellite.lossyScale.x);            // its length in the world at the model's own size
-        float length = natural;
-        var cam = Camera.main;
+        // Scale exactly like the satellite's axes (same growth with distance), so the sun arrow always stays in proportion to them.
+        float satScale = Mathf.Max(1e-7f, satellite.lossyScale.x);
+        float k = 1f;
+        var cam = SpaceCam.Current;
         if (cam != null)
         {
+            float axesNatural = S.satLength * satScale;
             float d = Vector3.Distance(cam.transform.position, satellite.position);
-            if (S.sunSatMinAngleDeg > 0f) length = Mathf.Max(length, d * Mathf.Tan(S.sunSatMinAngleDeg * Mathf.Deg2Rad));
-            length = Mathf.Min(length, d * S.sunSatMaxFractionOfDistance);
+            float axesLen = axesNatural;
+            if (S.satMinAngleDeg > 0f) axesLen = Mathf.Max(axesLen, d * Mathf.Tan(S.satMinAngleDeg * Mathf.Deg2Rad));
+            axesLen = Mathf.Min(axesLen, d * S.satMaxFractionOfDistance);
+            k = axesLen / Mathf.Max(1e-7f, axesNatural);
         }
+        float length = S.sunSatLength * satScale * k;
         satArrow.transform.localPosition = transform.InverseTransformPoint(satellite.position);
         satArrow.transform.localRotation = aim;
         satArrow.transform.localScale = Vector3.one * (length / lossy);

@@ -35,7 +35,7 @@ public class PanelsPage : MonoBehaviour
 
         PanelManager.Refresh();
         var list = new List<GrabbablePanel>();
-        foreach (var p in PanelManager.All) if (p != null && p.PanelId != "menu") list.Add(p);
+        foreach (var p in PanelManager.All) if (p != null && p.PanelId != "menu" && !(p.GetComponent<WorkspacePanel>() is WorkspacePanel wsp && wsp.IsPopOut)) list.Add(p);
         list.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName, System.StringComparison.OrdinalIgnoreCase));
 
         float h = 1f / Mathf.Max(1, maxRows);

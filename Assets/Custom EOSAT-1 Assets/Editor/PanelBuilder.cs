@@ -26,53 +26,41 @@ public static class PanelBuilder
     [MenuItem("CUBE15/Panels/New Welcome Panel")]
     static void Welcome()
     {
-        var root = Build("welcome", "Welcome", "EOSAT-1 VR SIMULATOR", 1300f, 1100f, out RectTransform content, out GrabbablePanel gp);
+        var root = Build("welcome", "Welcome", "EOSAT-1 VR SIMULATOR", 1100f, 660f, out RectTransform content, out GrabbablePanel gp);
 
         var so = new SerializedObject(gp);
         so.FindProperty("placeInFrontOnStart").boolValue = true;
         so.ApplyModifiedPropertiesWithoutUndo();
 
-        string dim = CubeTheme.HexString(CubeTheme.Dim);
-
-        // title
-        var title = Text("Welcome Title", content, new Vector2(0.03f, 0.915f), new Vector2(0.97f, 0.985f), 46,
+        // greeting
+        var title = Text("Welcome Title", content, new Vector2(0.03f, 0.84f), new Vector2(0.97f, 0.98f), 46,
                          TextAlignmentOptions.Center, CubeTheme.Text);
         title.text = "<b>Welcome to C.U.B.E.15's EOSAT-1 Simulator!</b>";
-        var sub = Text("Welcome Subtitle", content, new Vector2(0.03f, 0.875f), new Vector2(0.97f, 0.915f), 26,
+        var sub = Text("Welcome Subtitle", content, new Vector2(0.03f, 0.75f), new Vector2(0.97f, 0.84f), 28,
                        TextAlignmentOptions.Center, CubeTheme.Dim);
-        sub.text = "A live, in-headset view of the EOSAT-1 satellite, driven by the client's simulator.";
+        sub.text = "A live window onto the client's EOSAT-1 satellite simulator.";
 
         // what it does
-        var overview = WelcomeCard(content, "Overview Card", "WHAT IT DOES", new Vector2(0.03f, 0.64f), new Vector2(0.97f, 0.87f));
+        var overview = WelcomeCard(content, "Overview Card", "WHAT IT DOES", new Vector2(0.03f, 0.27f), new Vector2(0.97f, 0.72f));
+        string hi = CubeTheme.HexString(CubeTheme.Accent);
         overview.text =
-            "<b>Live telemetry</b>   EOSAT-1's position, attitude, Sun and eclipse state, streamed from the simulator.\n" +
-            "<b>Hub</b>   A globe, data panels and a ground-track map around you. Grab, pin and arrange them.\n" +
-            "<b>Space view</b>   Fly out to the satellite: Overview, Orbit, Inertial, Body-fixed, Sun and Ground-station views.\n" +
-            "<b>Warnings</b>   A popup and a red sphere appear on a high spin or bad data.\n" +
-            "<b>Mixed reality</b>   Switch on passthrough to use it in your room.";
+            "<color=#" + hi + "><b>Watch it live</b></color>   See EOSAT-1 orbit the Earth in real time, with its attitude, the Sun and eclipses.\n" +
+            "<color=#" + hi + "><b>Stay in the hub</b></color>   A globe, data panels and a ground-track map float around you. Move and resize them as you like.\n" +
+            "<color=#" + hi + "><b>Fly out to it</b></color>   Switch to space view for a close look at the satellite from six viewpoints.";
+        overview.fontSizeMax = 30;
 
-        // the controllers picture
-        var headset = Text("Controllers Heading", content, new Vector2(0.03f, 0.595f), new Vector2(0.97f, 0.635f), 22,
-                           TextAlignmentOptions.MidlineLeft, CubeTheme.Text);
-        headset.text = "<cspace=0.12em><b>YOUR CONTROLLERS</b></cspace>";      // filled in by the Welcome Guide
-        var pic = Rect("Controllers Picture", content, new Vector2(0.03f, 0.095f), new Vector2(0.97f, 0.59f));
-        var picBg = pic.gameObject.AddComponent<Image>();
-        picBg.color = CubeTheme.Inset; picBg.raycastTarget = false;
-        var diagram = Rect("Diagram", pic, Vector2.zero, Vector2.one);
+        var ask = Text("Tutorial Hint", content, new Vector2(0.03f, 0.165f), new Vector2(0.97f, 0.25f), 28,
+                       TextAlignmentOptions.Center, CubeTheme.Text);
+        ask.text = "New here? A two-minute tutorial will show you around.";
 
-        var guide = root.AddComponent<WelcomeGuide>();
-        var gso = new SerializedObject(guide);
-        gso.FindProperty("diagram").objectReferenceValue = diagram;
-        gso.FindProperty("headsetText").objectReferenceValue = headset;
-        gso.ApplyModifiedPropertiesWithoutUndo();
-
-        // bottom row
-        var hint = Text("Reopen Hint", content, new Vector2(0.03f, 0.02f), new Vector2(0.68f, 0.085f), 22,
-                        TextAlignmentOptions.MidlineLeft, CubeTheme.Dim);
-        hint.text = "You can open this again any time from Options > Panels.";
-        var btn = Button("Got it", content, new Vector2(0.72f, 0.02f), new Vector2(0.97f, 0.085f), 34, CubeTheme.ButtonAccent);
-        var actions = root.AddComponent<PanelActions>();
-        UnityEventTools.AddStringPersistentListener(btn.onClick, actions.HidePanel, "welcome");
+        // buttons: skip forever bottom left; skip + start tutorial bottom right
+        var actions = root.AddComponent<WelcomeButtons>();
+        var forever = Button("Skip forever", content, new Vector2(0.03f, 0.03f), new Vector2(0.27f, 0.14f), 24, CubeTheme.Button);
+        var skip = Button("Skip", content, new Vector2(0.50f, 0.03f), new Vector2(0.66f, 0.14f), 30, CubeTheme.Button);
+        var start = Button("Start tutorial", content, new Vector2(0.69f, 0.03f), new Vector2(0.97f, 0.14f), 30, CubeTheme.ButtonAccent);
+        UnityEventTools.AddPersistentListener(forever.onClick, actions.SkipForever);
+        UnityEventTools.AddPersistentListener(skip.onClick, actions.Skip);
+        UnityEventTools.AddPersistentListener(start.onClick, actions.StartTutorial);
 
         Save(root);
     }
@@ -106,21 +94,39 @@ public static class PanelBuilder
         // Page_Main
         var main = Page("Main", content, true);
         Nav(main, mc, 0, "Resume", null, CubeTheme.ButtonAccent, close: true);
-        Nav(main, mc, 1, "Options", "Options");
-        Nav(main, mc, 2, "Credits", "Credits");
-        Nav(main, mc, 3, "Quit", "Quit");
+        var mrBtn = Button("Mixed reality", main, Row(1), Row(1, true), 30, CubeTheme.Button);
+        var mrComp = mrBtn.gameObject.AddComponent<MenuMixedRealityButton>();
+        UnityEventTools.AddPersistentListener(mrBtn.onClick, mrComp.Toggle);
+        Nav(main, mc, 2, "Panels", "Panels");
+        Nav(main, mc, 3, "Options", "Options");
+        Nav(main, mc, 4, "Credits", "Credits");
+        Nav(main, mc, 5, "Quit", "Quit");
 
         // Page_Options
         var opt = Page("Options", content, false);
-        // six entries, a little tighter than the main menu's rows
-        string[,] items = { { "Controls", "Controls" }, { "Panels", "Panels" }, { "Display", "Display" },
+        // seven entries, a little tighter than the main menu's rows
+        string[,] items = { { "Controls", "Controls" }, { "Panels", "PanelFeel" }, { "Display", "Display" },
                             { "Satellite Data", "SatelliteData" }, { "Audio", "Audio" }, { "Accessibility", "Accessibility" } };
         for (int i = 0; i < items.GetLength(0); i++)
         {
-            float top = 0.95f - i * 0.125f;
-            Nav(opt, mc, items[i, 0], items[i, 1], 32, new Vector2(0.1f, top - 0.10f), new Vector2(0.9f, top));
+            float top = 0.95f - i * 0.115f;
+            Nav(opt, mc, items[i, 0], items[i, 1], 32, new Vector2(0.1f, top - 0.095f), new Vector2(0.9f, top));
         }
+        float tTop = 0.95f - items.GetLength(0) * 0.115f;
+        Nav(opt, mc, "Tutorial", "Tutorial", 32, new Vector2(0.1f, tTop - 0.095f), new Vector2(0.9f, tTop));
+        opt.gameObject.AddComponent<MenuPageSize>().height = 900f;      // eight buttons: a little taller than the main menu
         BackButton(opt, mc);
+
+        // Page_Tutorial: start it now, or have it start by itself at every launch
+        var tut = Page("Tutorial", content, false);
+        tut.gameObject.AddComponent<MenuPageSize>().height = 560f;      // few buttons: a shorter menu
+        var tnote = Text("Note", tut, new Vector2(0.08f, 0.68f), new Vector2(0.92f, 0.97f), 26, TextAlignmentOptions.Center, CubeTheme.Dim);
+        tnote.text = "A short guided tour of the simulator. With Welcome at launch on, the welcome panel offers it every time you start.";
+        var tstart = Button("Start tutorial", tut, new Vector2(0.1f, 0.47f), new Vector2(0.9f, 0.64f), 34, CubeTheme.ButtonAccent);
+        var tcomp = tstart.gameObject.AddComponent<MenuTutorialButton>();
+        UnityEventTools.AddPersistentListener(tstart.onClick, tcomp.Replay);
+        ChoiceRow(tut, "Welcome at launch", Tutorial.AutoKey, 0, new[] { "Off", "On" }, 0.42f);
+        BackButton(tut, mc);
 
         // placeholder pages, filled in later
         foreach (var n in new[] { "Audio" })
@@ -135,6 +141,7 @@ public static class PanelBuilder
         PanelsPageBuild(content, mc);
         PanelFeelPage(content, mc);
         ControlsPage(content, mc);
+        ControllerAlignmentPage(content, mc);
         AccessibilityPageBuild(content, mc);
         DisplayPageBuild(content, mc);
         ButtonMapPageBuild(content, mc);
@@ -200,9 +207,8 @@ public static class PanelBuilder
         Button("Reset", row, new Vector2(0.85f, 0.08f), new Vector2(1f, 0.92f), 19, CubeTheme.Button);
         row.gameObject.SetActive(false);
 
-        var reset = Button("Reset all", pg, new Vector2(0.06f, 0.165f), new Vector2(0.47f, 0.255f), 24, CubeTheme.Button);
+        var reset = Button("Reset all", pg, new Vector2(0.06f, 0.165f), new Vector2(0.94f, 0.255f), 24, CubeTheme.Button);
         UnityEventTools.AddPersistentListener(reset.onClick, pp.ResetPanels);
-        Nav(pg, mc, "Panel feel", "PanelFeel", 24, new Vector2(0.53f, 0.165f), new Vector2(0.94f, 0.255f));
 
         var so = new SerializedObject(pp);
         so.FindProperty("listRoot").objectReferenceValue = list;
@@ -343,12 +349,32 @@ public static class PanelBuilder
         CompactSlider(pg, "Snap turn angle", "controls.snapangle", 15f, 90f, 45f, 15f, "0", " deg", 0.83f);
         CompactSlider(pg, "Smooth turn speed", "controls.smoothspeed", 30f, 180f, 60f, 5f, "0", " deg/s", 0.68f);
         CompactSlider(pg, "Move speed", "controls.movespeed", 0.5f, 4f, 1.5f, 0.1f, "0.0", " m/s", 0.53f);
-        Nav(pg, mc, "Button mapping", "ButtonMapping", 26, new Vector2(0.1f, 0.265f), new Vector2(0.9f, 0.365f));
+        Nav(pg, mc, "Button mapping", "ButtonMapping", 22, new Vector2(0.05f, 0.265f), new Vector2(0.49f, 0.365f));
+        Nav(pg, mc, "Controller alignment", "ControllerAlignment", 22, new Vector2(0.51f, 0.265f), new Vector2(0.95f, 0.365f));
 
         var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
         foreach (var k in new[] { "controls.turnstyle", "controls.snapangle", "controls.smoothspeed", "controls.movespeed" })
             UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, k);
         UnityEventTools.AddPersistentListener(rb.onClick, act.ResetBindings);
+        BackButton(pg, mc);
+    }
+
+    // ── Controller alignment: nudge the controller models until they sit exactly over the real ones (seen in passthrough) ──
+    static void ControllerAlignmentPage(RectTransform content, MenuController mc)
+    {
+        var pg = Page("ControllerAlignment", content, false);
+        var act = pg.gameObject.AddComponent<SettingsActions>();
+
+        var note = Text("Note", pg, new Vector2(0.06f, 0.92f), new Vector2(0.94f, 0.995f), 19, TextAlignmentOptions.TopLeft, CubeTheme.Dim);
+        note.text = "Turn passthrough on and hold a controller still. Nudge until the model sits over your real controller.";
+        CompactSlider(pg, "Forward / back", "ctrl.fwd", -80f, 80f, 0f, 1f, "0", " mm", 0.89f);
+        CompactSlider(pg, "Up / down", "ctrl.up", -80f, 80f, 0f, 1f, "0", " mm", 0.74f);
+        CompactSlider(pg, "Toward other hand", "ctrl.side", -60f, 60f, 0f, 1f, "0", " mm", 0.59f);
+        CompactSlider(pg, "Tilt up / down", "ctrl.tilt", -60f, 60f, 0f, 1f, "0", " deg", 0.44f);
+
+        var rb = Button("Restore defaults", pg, new Vector2(0.1f, 0.165f), new Vector2(0.9f, 0.235f), 24, CubeTheme.Button);
+        foreach (var k in new[] { "ctrl.fwd", "ctrl.up", "ctrl.side", "ctrl.tilt" })
+            UnityEventTools.AddStringPersistentListener(rb.onClick, act.ResetKey, k);
         BackButton(pg, mc);
     }
 
@@ -663,6 +689,18 @@ public static class PanelBuilder
     }
 
     // ── the time panel: recording bar, play / pause, rewind, fast-forward, LIVE ──
+    [MenuItem("CUBE15/Panels/New Space View Panel")]
+    static void WorkspacePanelMenu()
+    {
+        var root = Build("spaceview", "Space View", "LIVE VIEWS", 1088f, 440f, out RectTransform content, out GrabbablePanel gp);
+        var wp = root.AddComponent<WorkspacePanel>();
+        var so = new SerializedObject(wp);
+        so.FindProperty("body").objectReferenceValue = content;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        root.SetActive(false);
+        Save(root);
+    }
+
     [MenuItem("CUBE15/Panels/New Time Panel")]
     static void TimePanel()
     {

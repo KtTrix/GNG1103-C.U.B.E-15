@@ -46,6 +46,9 @@ public class SatelliteAxes : MonoBehaviour
         stamp = S.GeometryStamp();
     }
 
+    void OnEnable() { SpaceCam.PreRender += LateUpdate; }
+    void OnDisable() { SpaceCam.PreRender -= LateUpdate; }
+
     // Grow with distance: up close the axes are the satellite's size; far away they are scaled up so they keep a readable size.
     void LateUpdate()
     {
@@ -58,7 +61,7 @@ public class SatelliteAxes : MonoBehaviour
         if (root.activeSelf != visible) root.SetActive(visible);
         if (!visible) return;
 
-        var cam = Camera.main;
+        var cam = SpaceCam.Current;
         float k = 1f;
         float s = transform.lossyScale.x;
         if (cam != null && s > 1e-7f)

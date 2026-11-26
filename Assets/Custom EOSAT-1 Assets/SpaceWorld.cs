@@ -226,6 +226,10 @@ public class SpaceWorld : MonoBehaviour
         if (go != null && go.activeSelf != on) go.SetActive(on);
     }
 
+    void OnEnable() { SpaceCam.PreRender += PlaceViewerThingsIfReady; }
+    void OnDisable() { SpaceCam.PreRender -= PlaceViewerThingsIfReady; }
+    void PlaceViewerThingsIfReady() { if (HasData) PlaceViewerThings(); }
+
     void Update()
     {
         if (frame == null)
@@ -287,7 +291,18 @@ public class SpaceWorld : MonoBehaviour
             }
         }
 
-        Camera cam = Camera.main;
+        PlaceViewerThings();
+
+        UpdateRing(s, eKm);
+        UpdateTrail(s, eKm);
+    }
+
+    // The marker and the Sun disc are sized / placed for the camera that is looking: the headset in the space view, or a
+    // space view view camera (SpaceCam raises PreRender just before one draws).
+    void PlaceViewerThings()
+    {
+        bool sat = HasSatellite;
+        Camera cam = SpaceCam.Current;
         Vector3 viewer = cam != null ? cam.transform.position : transform.position;
 
         if (marker != null)
@@ -316,9 +331,6 @@ public class SpaceWorld : MonoBehaviour
             sunDisc.localScale = Vector3.one *
                 (2f * sunDistanceUnits * Mathf.Tan(sunApparentDiameterDeg * 0.5f * Mathf.Deg2Rad)) / Mathf.Max(0.01f, transform.lossyScale.x);
         }
-
-        UpdateRing(s, eKm);
-        UpdateTrail(s, eKm);
     }
 
     /// <summary>The whole orbit as a circle through the satellite, in the plane of its position and velocity.</summary>

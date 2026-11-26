@@ -116,11 +116,14 @@ public class SatelliteBeacon : MonoBehaviour
         return t;
     }
 
+    void OnEnable() { SpaceCam.PreRender += LateUpdate; }
+    void OnDisable() { SpaceCam.PreRender -= LateUpdate; }
+
     void LateUpdate()
     {
         if (root == null) return;
 
-        var cam = Camera.main;
+        var cam = SpaceCam.Current;
         // Wait a few frames after the scene loads: until then the camera has not been moved to the satellite and the
         // distance-scaled dot would flash huge.
         bool show = enabledSetting && Time.frameCount - born >= 4 && cam != null && world != null && world.HasSatellite && sat != null && sat.gameObject.activeInHierarchy;

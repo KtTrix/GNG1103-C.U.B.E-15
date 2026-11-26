@@ -110,9 +110,12 @@ public static class AxesGizmo
 /// <summary>Turns the object to face the main camera every frame (for the axis letters).</summary>
 public class FaceViewer : MonoBehaviour
 {
+    void OnEnable() { SpaceCam.PreRender += LateUpdate; }
+    void OnDisable() { SpaceCam.PreRender -= LateUpdate; }
+
     void LateUpdate()
     {
-        var cam = Camera.main;
+        var cam = SpaceCam.Current;
         if (cam != null) transform.rotation = cam.transform.rotation;
     }
 }

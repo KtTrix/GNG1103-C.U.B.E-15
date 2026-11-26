@@ -21,14 +21,47 @@ public class MenuController : MonoBehaviour
     [Tooltip("How far below eye level the menu's centre opens, in metres (negative = lower). The panel is tall, so its top is above this.")]
     [SerializeField] float openHeightOffset = -0.22f;
 
+    [Tooltip("How big the menu opens, as a fraction of its built size (1 = full size). Used until the player resizes it with the corner handles; after that their own size is kept.")]
+    [Range(0.4f, 1f)] [SerializeField] float defaultScale = 0.7f;
+
     readonly Stack<string> history = new Stack<string>();
     string current = "";
 
     static string Key(string s) => s.Replace(" ", "").Replace("_", "").ToLowerInvariant();
 
+    RectTransform canvasRt;
+    float baseHeight;
+
+    // Each page can ask for its own menu height (MenuPageSize). The top edge stays where it is; the bottom moves.
+    void ApplyPageSize(Transform page, bool keepTop)
+    {
+        if (canvasRt == null)
+        {
+            var cv = GetComponentInChildren<Canvas>(true);
+            if (cv == null) return;
+            canvasRt = (RectTransform)cv.transform;
+            baseHeight = canvasRt.rect.height;
+        }
+        var ps = page != null ? page.GetComponent<MenuPageSize>() : null;
+        float h = ps != null ? ps.height : baseHeight;
+        float cur = canvasRt.rect.height;
+        if (Mathf.Abs(h - cur) < 0.5f) return;
+
+        canvasRt.sizeDelta = new Vector2(canvasRt.sizeDelta.x, h);
+        var body = canvasRt.GetComponent<BoxCollider>();      // the invisible box that lets the grip take hold anywhere
+        if (body != null)
+        {
+            body.size = new Vector3(canvasRt.rect.width, h, body.size.z);
+            body.center = new Vector3(canvasRt.rect.center.x, canvasRt.rect.center.y, 0f);
+        }
+        if (keepTop) transform.position -= canvasRt.up * ((h - cur) * 0.5f * canvasRt.lossyScale.y);
+    }
+
     void OnEnable()
     {
-        PanelManager.PlaceInFront(GetComponent<GrabbablePanel>(), openDistance, 0f, openHeightOffset);
+        var gp = GetComponent<GrabbablePanel>();
+        PanelManager.PlaceInFront(gp, openDistance, 0f, openHeightOffset);
+        if (gp != null && !CubeSettings.Has("panel.scale." + gp.PanelId)) gp.ScaleAboutCenter(defaultScale);
         history.Clear();
         current = "";
         ShowPage(mainPage);
@@ -48,6 +81,7 @@ public class MenuController : MonoBehaviour
             bool match = Key(child.name.Substring(5)) == want;
             if (match) found = true;
             child.gameObject.SetActive(match);
+            if (match) ApplyPageSize(child, current != "");
         }
 
         if (!found) { Debug.LogWarning("MenuController: no page called '" + pageName + "'.", this); return; }

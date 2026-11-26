@@ -316,6 +316,7 @@ public static class PanelManager
 
         p.Unlocked = false;
         p.Attach = GrabbablePanel.AttachMode.World;
+        p.ResetScale();                      // the L-corner scaling goes back to normal size too
         p.gameObject.SetActive(true);
 
         bool beside = use && PanelSettings.Get().layoutBesideGlobe &&

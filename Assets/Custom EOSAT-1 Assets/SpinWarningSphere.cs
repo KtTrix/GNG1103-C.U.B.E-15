@@ -44,6 +44,9 @@ public class SpinWarningSphere : MonoBehaviour
         if (iconMat != null) Destroy(iconMat);
     }
 
+    void OnEnable() { SpaceCam.PreRender += LateUpdate; }
+    void OnDisable() { SpaceCam.PreRender -= LateUpdate; }
+
     void LateUpdate()
     {
         var m = WarningMonitor.Instance;
@@ -55,7 +58,7 @@ public class SpinWarningSphere : MonoBehaviour
         var S = WarningSettings.Instance;
         float s = Mathf.Max(1e-6f, transform.lossyScale.x);                 // model metres -> world
         float radiusWorld = S.sphereRadius * s;
-        var cam = Camera.main;
+        var cam = SpaceCam.Current;
         Vector3 toCam = Vector3.up;
         if (cam != null)
         {

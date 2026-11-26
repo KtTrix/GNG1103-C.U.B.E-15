@@ -3,20 +3,14 @@ using UnityEngine;
 /// <summary>
 /// Builds the EOSAT-1 satellite from simple shapes and animates it from telemetry:
 ///   * a body (226 x 100 x 366 mm in X, Y, Z),
-///   * two solar wings (2 panels each, 209 x 342 mm) that unfold from the wide +Y and -Y faces (fraction 0 = folded, 1 = fully out),
+///   * two solar flaps (209 x 342 mm), one on each of the wide +Y and -Y faces. Stowed, each lies flat on its big face;
+///     it swings out 90 degrees about a hinge on the face's -Z edge until it is level with the -Z (top) deck, then stays there.
+///     Hinge angle = 90 degrees x fraction (0 = stowed, 1 = deployed). The cells face -Z once out.
 ///   * four antenna rods on the -Z end that swing out when the antenna deploys,
 ///   * a camera lens on the +Z end (the imager / nadir axis).
 ///
-/// Put this on the "Satellite" object in the SpaceView scene (the one SpaceWorld moves). It builds everything
-/// in code at start-up, so there is nothing to place by hand. The old cube's MeshRenderer is switched off.
-/// The model is built in real METRES; SpaceWorld scales the whole object (uniformly) to the size you want.
-///
-/// Axes: this object's local axes are Unity's, with body X -> x, body Y -> z, body Z -> y.
-///   body +Z (imager, points at Earth when nadir pointing) = local +y
-///   wings are on the wide faces: body +Y wing = local +z side, body -Y wing = local -z side
-///
-/// Solar cells face body +X (the stub's cell normal when the array angle is 0). The wing rotation angle (sada) from the
-/// stub is ignored on purpose, as agreed with the team.
+/// Axes: body X -> local x, body Y -> local z, body Z -> local y (+Z imager = local +y; flaps: +Y = local +z side, -Y = local -z side).
+/// The model is built in real METRES; SpaceWorld scales the whole object. Everything is built in code at start-up.
 /// </summary>
 public class SatelliteModel : MonoBehaviour
 {
@@ -24,13 +18,12 @@ public class SatelliteModel : MonoBehaviour
 
     [Header("Size (metres, body axes)")]
     [SerializeField] Vector3 bodySize = new Vector3(0.226f, 0.100f, 0.366f);   // X, Y, Z (the wide faces are +Y and -Y, where the wings are mounted)
-    [Tooltip("Length of each solar panel segment, measured outward from the body (stub spec: 2 panels of 209 x 342 mm).")]
-    [SerializeField] float panelLength = 0.209f;
-    [Tooltip("Panel size along the body's Z axis (342 mm in the stub's spec).")]
-    [SerializeField] float panelWidth = 0.342f;
-    [SerializeField] int segmentsPerWing = 2;
+    [Tooltip("How far each flap reaches from its hinge (342 mm: it covers the big face when stowed and sticks out this far when deployed).")]
+    [SerializeField] float panelLength = 0.342f;
+    [Tooltip("Flap size along the body's X axis (209 mm).")]
+    [SerializeField] float panelWidth = 0.209f;
     [Tooltip("The stub's geometry notes suggest four UHF tape-spring elements of about 0.5 m on the -Z corners.")]
-    [SerializeField] float antennaLength = 0.5f;
+    [SerializeField] float antennaLength = 0.25f;
 
     [Header("Look")]
     [SerializeField] Color bodyColor = new Color(0.78f, 0.74f, 0.62f);
@@ -48,8 +41,7 @@ public class SatelliteModel : MonoBehaviour
     [SerializeField] bool previewDeployedWithoutData = true;
 
     Transform[] wingHinge = new Transform[2];       // 0 = +Y wing, 1 = -Y wing
-    Transform[][] wingSegments = new Transform[2][];
-    Transform[] antennaPivot = new Transform[4];
+        Transform[] antennaPivot = new Transform[4];
     Transform[] antennaRod = new Transform[4];
     Quaternion[] antennaStowed = new Quaternion[4];
     Quaternion[] antennaOut = new Quaternion[4];
@@ -84,39 +76,26 @@ public class SatelliteModel : MonoBehaviour
         // Body
         Box("Body", transform, Vector3.zero, new Vector3(bx, bz, by), bodyMat);
 
-        // Imager camera on the +Z end (local +y): a round housing ring, a dark lens and a small glint,
-        // like the nadir camera on a 6U cubesat.
+        // Imager camera on the +Z (nadir) end (local +y): a round housing ring, a dark lens and a small glint.
         float camY = hy;
         Cyl("CameraRing", transform, new Vector3(0f, camY + 0.006f, 0f), new Vector3(0.088f, 0.006f, 0.088f), antennaMat);
         Cyl("CameraBarrel", transform, new Vector3(0f, camY + 0.016f, 0f), new Vector3(0.066f, 0.006f, 0.066f), bodyMat);
         Cyl("CameraLens", transform, new Vector3(0f, camY + 0.0235f, 0f), new Vector3(0.050f, 0.0015f, 0.050f), lensMat);
         Cyl("CameraGlint", transform, new Vector3(0.010f, camY + 0.0255f, 0.010f), new Vector3(0.012f, 0.0006f, 0.012f), antennaMat);
 
-        // Solar wings, as in the stub's notes: mounted on the body's +Y and -Y faces (the wide 226 x 366 mm faces),
-        // each wing 2 folding panels of 209 x 342 mm, folded flat against the face when stowed. The hinge runs along
-        // the face's -X edge (parallel to body Z = local y); the panels open outward along +/-Y (local z).
+        // Solar flaps: one on each wide face (+Y / -Y), hinged along the face's -Z edge (parallel to body X = local x).
+        // Stowed, the flap lies over the face; it swings out 90 degrees to lie level with the top deck and stays there.
         for (int w = 0; w < 2; w++)
         {
-            float side = w == 0 ? 1f : -1f;                       // +Y wing, -Y wing
+            float side = w == 0 ? 1f : -1f;                       // +Y flap, -Y flap
             var hinge = new GameObject(w == 0 ? "Wing+Y" : "Wing-Y").transform;
             hinge.SetParent(transform, false);
-            hinge.localPosition = new Vector3(-hx, 0f, side * (hz + Gap));
+            hinge.localPosition = new Vector3(0f, -hy, side * (hz + Gap));
             wingHinge[w] = hinge;
-
-            wingSegments[w] = new Transform[Mathf.Max(1, segmentsPerWing)];
-            Transform parent = hinge;
-            for (int i = 0; i < wingSegments[w].Length; i++)
-            {
-                var seg = new GameObject("Segment" + i).transform;
-                seg.SetParent(parent, false);
-                seg.localPosition = i == 0 ? Vector3.zero : new Vector3(panelLength, 0f, 0f);
-                wingSegments[w][i] = seg;
-                BuildPanel(seg, side, i);
-                parent = seg;
-            }
+            BuildPanel(hinge, side);
         }
 
-        // Four antenna elements on the -Z end, one at each corner. They are short stubs when stowed and
+        // Four antenna elements on the -Z end, one at each corner (assumed: the stub notes put them there; they splay clear of the lens). They are short stubs when stowed and
         // grow to full length as they swing out.
         int n = 0;
         for (int sx = -1; sx <= 1; sx += 2)
@@ -128,11 +107,11 @@ public class SatelliteModel : MonoBehaviour
                 var rod = Cyl("Rod", pivot, Vector3.zero, new Vector3(0.006f, 0.03f, 0.006f), antennaMat);
                 antennaRod[n] = rod;
 
-                // Stowed: lying flat along the -Z face, pointing toward the middle of the long side (local x).
-                antennaStowed[n] = Quaternion.FromToRotation(Vector3.up, new Vector3(-sx, 0f, 0f));
-                // Deployed: pointing away from the -Z face (local -y), splayed outward.
+                // The rods do not fold out: they push out in a straight line, so the direction is the same stowed and deployed
+                // (only the length grows). They point away from the -Z face (local -y), splayed outward a little.
                 Vector3 dir = new Vector3(sx * 0.45f, -0.85f, sz * 0.3f).normalized;
                 antennaOut[n] = Quaternion.FromToRotation(Vector3.up, dir);
+                antennaStowed[n] = antennaOut[n];
                 pivot.localRotation = antennaStowed[n];
                 antennaPivot[n] = pivot;
                 n++;
@@ -141,19 +120,19 @@ public class SatelliteModel : MonoBehaviour
         ApplyPose(0f, 0f, 0f);
     }
 
-    // One solar panel: a thin box running along local +x from the segment's origin (209 mm), 342 mm along local y.
-    // Folded, it lies on the face (thickness along local z). Once the wing is out, its flat faces point along body
-    // +/-X, and the cells face body +X (the stub's cell normal at a sun-tracking angle of 0).
-    void BuildPanel(Transform seg, float side, int index)
+    // One solar flap, standing up (local +y) from its hinge, panelWidth wide along x and panelLength long. Its thickness sits on
+    // the outer side of the hinge (local +side z). The cells are on that outer face: they face outward while stowed and turn to
+    // face +Z (zenith) when the flap has swung out.
+    void BuildPanel(Transform hinge, float side)
     {
         float t = 0.006f;     // thickness (along local z)
         var holder = new GameObject("Panel").transform;
-        holder.SetParent(seg, false);
-        holder.localPosition = new Vector3(panelLength * 0.5f, 0f, side * t * 0.5f);
+        holder.SetParent(hinge, false);
+        holder.localPosition = new Vector3(0f, panelLength * 0.5f, side * t * 0.5f);
 
-        Box("Back", holder, Vector3.zero, new Vector3(panelLength, panelWidth, t), backMat);
-        float cellOffset = -side * (t * 0.5f + 0.0005f);
-        Box("Cells", holder, new Vector3(0f, 0f, cellOffset), new Vector3(panelLength * 0.94f, panelWidth * 0.97f, 0.001f), cellMat);
+        Box("Back", holder, Vector3.zero, new Vector3(panelWidth, panelLength, t), backMat);
+        float cellOffset = side * (t * 0.5f + 0.0005f);
+        Box("Cells", holder, new Vector3(0f, 0f, cellOffset), new Vector3(panelWidth * 0.94f, panelLength * 0.97f, 0.001f), cellMat);
     }
 
     // ── updating ─────────────────────────────────────────────────────────────
@@ -191,7 +170,7 @@ public class SatelliteModel : MonoBehaviour
         PoseWing(0, f0, 1f);
         PoseWing(1, f1, -1f);
         float e = Mathf.SmoothStep(0f, 1f, ant);
-        float len = Mathf.Lerp(0.06f, antennaLength, e);
+        float len = Mathf.Lerp(0.03f, antennaLength, e);
         for (int i = 0; i < 4; i++)
         {
             if (antennaPivot[i] == null) continue;
@@ -201,19 +180,13 @@ public class SatelliteModel : MonoBehaviour
         }
     }
 
-    // fraction 0 = every panel folded flat against the face; 1 = wing straight out along +/-Y.
+    // fraction 0 = stowed (flap down over the big face); 1 = swung out 90 degrees, level with the top deck.
+    // Hinge angle = 90 degrees x fraction. Rotation is about the hinge line (local x).
     void PoseWing(int w, float f, float side)
     {
         if (wingHinge[w] == null) return;
         f = Mathf.Clamp01(f);
-        // First panel swings out 90 degrees about the hinge (parallel to local y).
-        wingSegments[w][0].localRotation = Quaternion.Euler(0f, -side * 90f * f, 0f);
-        // Each later panel starts folded back (180 degrees) and opens to straight (0).
-        for (int i = 1; i < wingSegments[w].Length; i++)
-        {
-            float sign = (i % 2 == 1) ? 1f : -1f;
-            wingSegments[w][i].localRotation = Quaternion.Euler(0f, -side * sign * 180f * (1f - f), 0f);
-        }
+        wingHinge[w].localRotation = Quaternion.Euler(side * 90f * f, 0f, 0f);
     }
 
     // ── building blocks ──────────────────────────────────────────────────────

@@ -27,7 +27,11 @@ public class PanelGrabber : MonoBehaviour
     {
         public string name;
         public InputAction aimPos, aimRot, devPos, devRot, grip, grab, stick, axis;
-        public GrabbablePanel hover, held;
+        public GrabbablePanel hover, held, scaling;
+        public PanelCornerHandle hoverCorner, scaleCorner;
+        public float scaleStart, scaleR0;
+        public InputAction trig;
+        public bool trigDown, scaleByTrigger;
         public bool gripDown, free, loggedPose, restrict;
         public Vector3 startHand, startPanel, grabLocal, startDirFlat;
         public float grabDist;
@@ -64,6 +68,7 @@ public class PanelGrabber : MonoBehaviour
         h.devPos = new InputAction("devPos", InputActionType.Value, p + "devicePosition");
         h.devRot = new InputAction("devRot", InputActionType.Value, p + "deviceRotation");
         h.grip = new InputAction("grip", InputActionType.Value, p + "grip");
+        h.trig = new InputAction("trig", InputActionType.Value, p + "trigger");       // the trigger can also scale a panel from its corners
         h.grab = new InputAction("grab", InputActionType.Button);       // used when the player has remapped the grab button
         ControlMap.Apply(h.grab, "grab", usage);
         // pressing the thumbstick in; two spellings of the same button (a path that doesn't exist is ignored)
@@ -77,9 +82,9 @@ public class PanelGrabber : MonoBehaviour
     {
         PanelManager.RigMoved += OnRigMoved;
         Application.onBeforeRender += PanelManager.SyncRig;      // last look before drawing, after everything has moved the rig
-        foreach (var h in new[] { left, right }) { h.aimPos.Enable(); h.aimRot.Enable(); h.devPos.Enable(); h.devRot.Enable(); h.grip.Enable(); h.grab.Enable(); h.stick.Enable(); h.axis.Enable(); }
+        foreach (var h in new[] { left, right }) { h.aimPos.Enable(); h.aimRot.Enable(); h.devPos.Enable(); h.devRot.Enable(); h.grip.Enable(); h.grab.Enable(); h.stick.Enable(); h.axis.Enable(); h.trig.Enable(); }
     }
-    void OnDisable() { PanelManager.RigMoved -= OnRigMoved; Application.onBeforeRender -= PanelManager.SyncRig; PanelLocomotionLock.Tick(false, false, S.disableTeleport); foreach (var h in new[] { left, right }) { h.aimPos.Disable(); h.aimRot.Disable(); h.devPos.Disable(); h.devRot.Disable(); h.grip.Disable(); h.grab.Disable(); h.stick.Disable(); h.axis.Disable(); } }
+    void OnDisable() { PanelManager.RigMoved -= OnRigMoved; Application.onBeforeRender -= PanelManager.SyncRig; PanelLocomotionLock.Tick(false, false, S.disableTeleport); foreach (var h in new[] { left, right }) { h.aimPos.Disable(); h.aimRot.Disable(); h.devPos.Disable(); h.devRot.Disable(); h.grip.Disable(); h.grab.Disable(); h.stick.Disable(); h.axis.Disable(); h.trig.Disable(); } }
 
     // The rig moved (space view): move every point the grabber remembers by the same amount, so a panel you are holding
     // doesn't think your hand moved, and "raise your hand to break free" isn't triggered by the rig's own motion.
@@ -115,7 +120,7 @@ public class PanelGrabber : MonoBehaviour
         Step(right, cam);
 
         // The hand holding a panel gives up its walking / turning / teleport; the other hand keeps its controls.
-        PanelLocomotionLock.Tick(left.held != null, right.held != null, S.disableTeleport);
+        PanelLocomotionLock.Tick(left.held != null || left.scaling != null, right.held != null || right.scaling != null, S.disableTeleport);
     }
 
     // Controller pose in world space (aim pose, falling back to the grip pose). False if the hand isn't tracked.
@@ -140,7 +145,9 @@ public class PanelGrabber : MonoBehaviour
         if (!Pose(h, out Vector3 wp, out Quaternion wr))
         {
             Release(h);
+            EndScale(h);
             if (h.hover != null) { h.hover.SetHover(false); h.hover = null; }
+            if (h.hoverCorner != null) { h.hoverCorner.Hover = false; h.hoverCorner = null; }
             return;
         }
 
@@ -152,9 +159,28 @@ public class PanelGrabber : MonoBehaviour
         bool justPressed = pressed && !h.gripDown;
         h.gripDown = pressed;
 
+        float tv = h.trig.ReadValue<float>();
+        bool tPressed = h.trigDown ? tv > S.gripOff : tv > S.gripOn;
+        bool tJust = tPressed && !h.trigDown;
+        h.trigDown = tPressed;
+
+        // Scaling a panel by one of its corners: the grip is held on an L handle.
+        if (h.scaling != null)
+        {
+            if (!(h.scaleByTrigger ? tPressed : pressed)) { EndScale(h); return; }
+            DragScale(h, wp, wr);
+            return;
+        }
+
         if (h.held == null)
         {
-            GrabbablePanel hit = Pick(wp, wr * Vector3.forward, out Vector3 hitPoint, out float hitDist);
+            GrabbablePanel hit = Pick(wp, wr * Vector3.forward, out Vector3 hitPoint, out float hitDist, out PanelCornerHandle corner);
+            if (corner != h.hoverCorner)
+            {
+                if (h.hoverCorner != null) h.hoverCorner.Hover = false;
+                h.hoverCorner = corner;
+                if (corner != null) corner.Hover = true;
+            }
             if (hit != h.hover)
             {
                 if (h.hover != null) h.hover.SetHover(false);
@@ -163,7 +189,17 @@ public class PanelGrabber : MonoBehaviour
             }
 
             if (justPressed) Debug.Log("[PanelGrabber] " + h.name + " grip pressed, pointing at " + (hit != null ? hit.PanelId + " handle" : "no handle"));
-            if (justPressed && !ControlMap.Busy && hit != null && !hit.IsGrabbed && !hit.Pinned) Begin(h, hit, wp, wr, head, hitPoint, hitDist);
+            if (corner != null && tJust && !justPressed && !ControlMap.Busy && hit != null && !hit.IsGrabbed && !hit.Pinned)
+            {
+                h.scaleByTrigger = true;                         // trigger on a corner scales too
+                BeginScale(h, hit, corner, wp, wr);
+            }
+            else if (justPressed && !ControlMap.Busy && hit != null && !hit.IsGrabbed && !hit.Pinned)
+            {
+                h.scaleByTrigger = false;
+                if (corner != null) BeginScale(h, hit, corner, wp, wr);
+                else Begin(h, hit, wp, wr, head, hitPoint, hitDist);
+            }
             return;
         }
 
@@ -171,19 +207,76 @@ public class PanelGrabber : MonoBehaviour
         Drag(h, head, wp, wr);
     }
 
-    GrabbablePanel Pick(Vector3 origin, Vector3 dir, out Vector3 point, out float dist)
+    GrabbablePanel Pick(Vector3 origin, Vector3 dir, out Vector3 point, out float dist, out PanelCornerHandle corner)
     {
+        corner = null;
+        float cornerBest = float.MaxValue; PanelCornerHandle cFound = null; Vector3 cPoint = origin;
         var hits = Physics.RaycastAll(origin, dir, S.maxRayDistance, ~0, QueryTriggerInteraction.Collide);
         float best = float.MaxValue;
         GrabbablePanel found = null;
         point = origin; dist = 0f;
         foreach (var hit in hits)
         {
+            var ch = hit.collider.GetComponent<PanelCornerHandle>();
+            if (ch != null && ch.panel != null)
+            {
+                if (hit.distance < cornerBest) { cornerBest = hit.distance; cFound = ch; cPoint = hit.point; }
+                continue;
+            }
             var handle = hit.collider.GetComponent<PanelHandle>();
             if (handle == null || handle.panel == null) continue;
             if (hit.distance < best) { best = hit.distance; found = handle.panel; point = hit.point; dist = hit.distance; }
         }
+        // a corner wins over the panel's body when it is about as near (the corner brackets stick out past the body)
+        if (cFound != null && (found == null || cornerBest <= best + 0.25f))
+        {
+            corner = cFound; point = cPoint; dist = cornerBest;
+            return cFound.panel;
+        }
         return found;
+    }
+
+    // ── scaling from a corner ────────────────────────────────────────────────
+    // Where the pointer meets the panel's plane, measured from the panel's middle: pull the corner out and the distance grows,
+    // so the panel grows by the same ratio (the corner stays under the pointer). The panel's middle stays where it is.
+    bool PointerOnPlane(GrabbablePanel p, Vector3 origin, Quaternion rot, out float radius)
+    {
+        radius = 0f;
+        Vector3 n = p.FaceNormal, d = rot * Vector3.forward, c = p.CenterWorld;
+        float den = Vector3.Dot(d, n);
+        if (Mathf.Abs(den) < 0.05f) return false;
+        float t = Vector3.Dot(c - origin, n) / den;
+        if (t < 0.05f) return false;
+        radius = Vector3.Distance(origin + d * t, c);
+        return true;
+    }
+
+    void BeginScale(Hand h, GrabbablePanel p, PanelCornerHandle corner, Vector3 wp, Quaternion wr)
+    {
+        if (!PointerOnPlane(p, wp, wr, out float r) || r < 0.02f) return;
+        h.scaling = p; h.scaleCorner = corner;
+        h.scaleStart = p.Scale; h.scaleR0 = r;
+        p.IsGrabbed = true;
+        corner.Active = true;
+    }
+
+    void DragScale(Hand h, Vector3 wp, Quaternion wr)
+    {
+        var p = h.scaling;
+        if (p == null) { EndScale(h); return; }
+        if (!PointerOnPlane(p, wp, wr, out float r)) return;
+        float want = Mathf.Clamp(h.scaleStart * r / h.scaleR0, GrabbablePanel.MinScale, GrabbablePanel.MaxScale);
+        p.ScaleAboutCenter(Mathf.Lerp(p.Scale, want, 1f - Mathf.Exp(-25f * Time.unscaledDeltaTime)));
+    }
+
+    void EndScale(Hand h)
+    {
+        if (h.scaling == null) return;
+        var p = h.scaling;
+        h.scaling = null;
+        if (h.scaleCorner != null) h.scaleCorner.Active = false;
+        h.scaleCorner = null;
+        if (p != null) { p.IsGrabbed = false; p.SaveScale(); }
     }
 
     void Begin(Hand h, GrabbablePanel p, Vector3 handPos, Quaternion handRot, Transform head, Vector3 hitPoint, float hitDist)

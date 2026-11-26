@@ -115,6 +115,10 @@ public class SpaceViewController : MonoBehaviour
     Vector3 poseFocus; bool poseOrbits;    // what the turn pivots around (set by TryGetPose)
     float savedNearClip = -1f, savedFarClip = -1f;
 
+    /// <summary>Set by ViewManager just before it loads this scene in the background (hub space view): the controller then leaves the rig and camera alone.</summary>
+    public static bool NextStartInactive;
+    bool rigActive = true;
+
     // Where the head sits in the rig when we last centred (so leaning still works).
     Vector3 captureHeadLocal;
     float captureYaw;
@@ -146,8 +150,10 @@ public class SpaceViewController : MonoBehaviour
     {
         if (world == null) world = FindAnyObjectByType<SpaceWorld>();
         origin = FindAnyObjectByType<XROrigin>();
+        rigActive = !NextStartInactive;
+        NextStartInactive = false;
 
-        if (origin != null && origin.Camera != null)
+        if (rigActive && origin != null && origin.Camera != null)
         {
             savedNearClip = origin.Camera.nearClipPlane;
             origin.Camera.nearClipPlane = nearClip;
@@ -221,6 +227,57 @@ public class SpaceViewController : MonoBehaviour
             case ViewKind.Sun: return sunView;
             default: return groundView;
         }
+    }
+
+    // ── used by the hub space view (ViewManager / WorkspaceViews) ─────────────
+    /// <summary>On = this controller flies the headset (the space view). Off = the space scene sits in the background and the headset is left alone.</summary>
+    public void SetRigControl(bool on)
+    {
+        if (on == rigActive) return;
+        rigActive = on;
+        if (origin == null) origin = FindAnyObjectByType<XROrigin>();
+        var cam = origin != null ? origin.Camera : null;
+        if (on)
+        {
+            if (cam != null)
+            {
+                if (savedNearClip < 0f) savedNearClip = cam.nearClipPlane;
+                cam.nearClipPlane = nearClip;
+                if (savedFarClip < 0f) savedFarClip = cam.farClipPlane;
+                if (farClip > savedFarClip) cam.farClipPlane = farClip;
+            }
+            captured = false; hasLast = false; blending = false; bodyInit = false; inertialCaptured = false;
+        }
+        else
+        {
+            if (cam != null)
+            {
+                if (savedNearClip > 0f) cam.nearClipPlane = savedNearClip;
+                if (savedFarClip > 0f) cam.farClipPlane = savedFarClip;
+            }
+            savedNearClip = -1f; savedFarClip = -1f;
+            if (world != null) { world.SetWorldScale(1f); world.SatelliteZoomScale = 1f; }
+        }
+    }
+
+    /// <summary>Zoom range and starting distance for a view (Unity units), for the space view's own cameras.</summary>
+    public void GetZoomLimits(ViewKind v, out float min, out float max, out float start)
+    {
+        ZoomRange(v, out min, out max);
+        start = Mathf.Clamp(Tuning(v).start, min, max);
+    }
+
+    public int StationCount => stations.Length;
+    public string StationName(int i) => stations.Length == 0 ? "" : stations[((i % stations.Length) + stations.Length) % stations.Length].name;
+    public void StationLatLon(int i, out float lat, out float lon)
+    {
+        var st = stations[((i % stations.Length) + stations.Length) % stations.Length];
+        lat = st.lat; lon = st.lon;
+    }
+    public int FindStation(string stationName)
+    {
+        for (int i = 0; i < stations.Length; i++) if (stations[i].name == stationName) return i;
+        return -1;
     }
 
     // ── public controls ──────────────────────────────────────────────────────
@@ -318,7 +375,7 @@ public class SpaceViewController : MonoBehaviour
     // ── per frame ────────────────────────────────────────────────────────────
     void LateUpdate()
     {
-        if (world == null || origin == null || origin.Camera == null || !world.HasData) return;
+        if (!rigActive || world == null || origin == null || origin.Camera == null || !world.HasData) return;
         if (!captured) CaptureHead();
 
         float dt = Time.unscaledDeltaTime;

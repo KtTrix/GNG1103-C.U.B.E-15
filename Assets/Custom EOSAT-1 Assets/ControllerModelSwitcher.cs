@@ -32,6 +32,16 @@ public class ControllerModelSwitcher : MonoBehaviour
     [Tooltip("Use the left model on the right hand and vice versa, if they come out swapped.")]
     [SerializeField] bool swapLeftRight = false;
 
+    [Header("Per headset (extra to the above)")]
+    [Tooltip("Quest Pro controllers: extra shift in millimetres (x = toward the other hand, y = up, z = forward). " +
+             "Find the numbers with Options > Controls > Controller alignment, then type them here so every user gets them.")]
+    [SerializeField] Vector3 questProShiftMm = Vector3.zero;
+    [Tooltip("Quest Pro controllers: extra tilt up (+) or down (-), in degrees.")]
+    [SerializeField] float questProTiltDeg = 0f;
+    [Tooltip("Quest 3 / 3S controllers: extra shift in millimetres (x = toward the other hand, y = up, z = forward).")]
+    [SerializeField] Vector3 quest3ShiftMm = Vector3.zero;
+    [SerializeField] float quest3TiltDeg = 0f;
+
     [Header("Extras")]
     [Tooltip("Move the trigger, grip, buttons and thumbsticks on the model when you use them.")]
     [SerializeField] bool animateButtons = true;
@@ -62,6 +72,24 @@ public class ControllerModelSwitcher : MonoBehaviour
     };
     float nextCheck;
 
+    // The player's own adjustment (Options > Controls > Controller alignment), millimetres and degrees.
+    Vector3 userShiftMm; float userTiltDeg, nextAdjustRead;
+
+    void ReadAdjustment()
+    {
+        if (Time.unscaledTime < nextAdjustRead) return;
+        nextAdjustRead = Time.unscaledTime + 0.1f;
+        userShiftMm = new Vector3(CubeSettings.GetFloat("ctrl.side", 0f), CubeSettings.GetFloat("ctrl.up", 0f), CubeSettings.GetFloat("ctrl.fwd", 0f));
+        userTiltDeg = CubeSettings.GetFloat("ctrl.tilt", 0f);
+    }
+
+    void ProfileExtra(Hand h, out Vector3 shiftMm, out float tiltDeg)
+    {
+        shiftMm = userShiftMm; tiltDeg = userTiltDeg;
+        if (h.profile == "questpro") { shiftMm += questProShiftMm; tiltDeg += questProTiltDeg; }
+        else if (h.profile == "quest3") { shiftMm += quest3ShiftMm; tiltDeg += quest3TiltDeg; }
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot()
     {
@@ -80,11 +108,12 @@ public class ControllerModelSwitcher : MonoBehaviour
             if (hideTemplateCallouts) HideCallouts();
         }
         // Re-apply the placement every frame, so changing the values in the inspector takes effect straight away.
+        ReadAdjustment();
         foreach (var h in hands)
             if (h.model != null)
             {
                 h.model.transform.localPosition = PlacementFor(h);
-                h.model.transform.localRotation = Quaternion.Euler(modelEulerDegrees);
+                h.model.transform.localRotation = RotationFor(h);
             }
         if (animateButtons) foreach (var h in hands) if (h.model != null) Animate(h);
     }
@@ -93,7 +122,15 @@ public class ControllerModelSwitcher : MonoBehaviour
     {
         // X is towards the other hand: +x for the left controller, -x for the right (controller's own axes).
         float mirror = h.word == "Left" ? 1f : -1f;
-        return modelOffset + new Vector3(handShift.x * mirror, handShift.y, handShift.z);
+        ProfileExtra(h, out Vector3 mm, out _);
+        return modelOffset + new Vector3(handShift.x * mirror, handShift.y, handShift.z)
+               + new Vector3(mm.x * mirror, mm.y, mm.z) * 0.001f;
+    }
+
+    Quaternion RotationFor(Hand h)
+    {
+        ProfileExtra(h, out _, out float tilt);
+        return Quaternion.Euler(modelEulerDegrees + new Vector3(tilt, 0f, 0f));
     }
 
     // ── choosing the model ───────────────────────────────────────────────────
@@ -137,7 +174,7 @@ public class ControllerModelSwitcher : MonoBehaviour
                 h.model = Instantiate(prefab, h.anchor);
                 h.model.name = "Controller " + h.word + " (" + want + ")";
                 h.model.transform.localPosition = PlacementFor(h);
-                h.model.transform.localRotation = Quaternion.Euler(modelEulerDegrees);
+                h.model.transform.localRotation = RotationFor(h);
                 foreach (var c in h.model.GetComponentsInChildren<Collider>(true)) Destroy(c);
                 Bind(h);
                 useModel = true;
