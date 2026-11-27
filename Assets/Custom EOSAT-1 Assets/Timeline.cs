@@ -95,6 +95,21 @@ public class Timeline : MonoBehaviour
             return replaying ? inst.IndexAt(inst.pos) : inst.recs.Count - 1;
         }
     }
+    /// <summary>
+    /// While replaying: the recorded frame the playhead is in (i) and how far it is toward the next one (u, 0..1). The playhead
+    /// moves every rendered frame, but recorded frames are only about 10 a second, so smooth motion has to blend between them.
+    /// </summary>
+    public static bool Bracket(out int i, out float u)
+    {
+        i = 0; u = 0f;
+        if (inst == null || !replaying || inst.recs.Count == 0) return false;
+        i = inst.IndexAt(inst.pos);
+        if (i + 1 >= inst.recs.Count) return true;
+        float t0 = inst.recs[i].t, t1 = inst.recs[i + 1].t;
+        u = t1 > t0 ? Mathf.Clamp01((inst.pos - t0) / (t1 - t0)) : 0f;
+        return true;
+    }
+
     public static StateFrame FrameAt(int i) => inst != null && i >= 0 && i < inst.recs.Count ? inst.recs[i].f : null;
     public static double SimAt(int i) => inst != null && i >= 0 && i < inst.recs.Count ? inst.recs[i].sim : 0;
 
@@ -266,7 +281,7 @@ public class Timeline : MonoBehaviour
     {
         if (!replaying) return;                                             // already at the front
         jumps++;
-        rate = rate < 1f ? 2f : Mathf.Min(rate * 2f, 16f);
+        rate = rate < 1f ? 2f : Mathf.Min(rate + 1f, 16f);          // 2x, 3x, 4x ... 16x
     }
 
     void DoRewind()
@@ -274,7 +289,7 @@ public class Timeline : MonoBehaviour
         if (recs.Count == 0) return;
         jumps++;
         if (!replaying) EnterReplay(End);
-        rate = rate > -2f ? -2f : Mathf.Max(rate * 2f, -16f);
+        rate = rate > -2f ? -2f : Mathf.Max(rate - 1f, -16f);       // -2x, -3x, -4x ... -16x
     }
 
     void DoGoLive()
@@ -350,7 +365,7 @@ public class Timeline : MonoBehaviour
         if (seekPending && Time.unscaledTime >= nextSeekEvent)
         {
             seekPending = false;
-            nextSeekEvent = Time.unscaledTime + (scrubbing ? 0.12f : 0.35f);
+            nextSeekEvent = Time.unscaledTime + (scrubbing ? 0.12f : 0.75f);     // playing back or rewinding: redraw the trails less often (each redraw is a small hitch)
             Seeked?.Invoke();
         }
     }

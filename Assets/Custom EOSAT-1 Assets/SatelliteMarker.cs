@@ -99,6 +99,16 @@ public class SatelliteMarker : MonoBehaviour
                                  DefaultEarthRadiusKm);
             haveTarget = true;
         }
+        else if (SpaceFrame.ReplayInterpolating)
+        {
+            // rewinding / fast-forwarding / dragging: follow the blended position every frame (no smoothing needed, no judder)
+            var e = SpaceFrame.ReplayEciKm;
+            target = LocalFor(e.x, e.y, e.z, SpaceFrame.ReplayGmstDeg);
+            haveTarget = true;
+            snapNext = true;
+            pendingSnap = false;
+            lastFrameCount = -1;
+        }
         else if (telemetry != null && telemetry.FramesReceived != lastFrameCount && telemetry.Latest != null)
         {
             lastFrameCount = telemetry.FramesReceived;

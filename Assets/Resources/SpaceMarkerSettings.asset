@@ -52,7 +52,7 @@ MonoBehaviour:
   trailWidthDeg: 0.2
   trailLengthDeg: 120
   maxTrailPoints: 700
-  trailTailAlpha: 1
+  trailTailAlpha: 0
   fullUntilSizeDeg: 1
   dotGoneAtSizeDeg: 6
   trailDimmestAtSizeDeg: 12

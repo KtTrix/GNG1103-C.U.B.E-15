@@ -623,5 +623,10 @@ public class SpaceViewController : MonoBehaviour
         lastPos = headPos;
         lastRot = viewRot;
         hasLast = true;
+
+        // Carry the open panels along with the rig right now, not later in the frame. The controller rays work out what they
+        // point at before the frame is drawn; if the panels were still a frame behind the rig at that moment, the pointer would
+        // land off to the side, opposite to the direction of travel, by more the faster time runs.
+        PanelManager.SyncRig();
     }
 }

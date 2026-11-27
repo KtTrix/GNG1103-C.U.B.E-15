@@ -120,6 +120,36 @@ public class ControlsApplier : MonoBehaviour
         o.GetType().GetMethod("UpdateLocomotionActions", Flags)?.Invoke(o, null);
     }
 
+    // "Pull the right stick back to turn around" belongs to snap turning only. The snap turn provider has a switch for it
+    // (enableTurnAround); with smooth turning it is turned off, and with snap turning it goes back to the rig's own setting.
+    readonly Dictionary<MonoBehaviour, bool> turnAroundOriginal = new Dictionary<MonoBehaviour, bool>();
+
+    void ApplyTurnAround(bool smooth)
+    {
+        foreach (var mb in Find("SnapTurnProvider"))
+        {
+            var t = mb.GetType();
+            PropertyInfo p = null; FieldInfo f = null;
+            foreach (Type tt in new[] { t, t.BaseType })
+            {
+                if (tt == null) continue;
+                p = tt.GetProperty("enableTurnAround", Flags);
+                f = tt.GetField("m_EnableTurnAround", Flags);
+                if (p != null || f != null) break;
+            }
+            bool cur;
+            if (p != null && p.CanRead && p.CanWrite && p.PropertyType == typeof(bool)) cur = (bool)p.GetValue(mb);
+            else if (f != null && f.FieldType == typeof(bool)) cur = (bool)f.GetValue(mb);
+            else continue;
+
+            if (!turnAroundOriginal.ContainsKey(mb)) turnAroundOriginal[mb] = cur;
+            bool want = smooth ? false : turnAroundOriginal[mb];
+            if (cur == want) continue;
+            if (p != null && p.CanWrite && p.PropertyType == typeof(bool)) p.SetValue(mb, want);
+            else f.SetValue(mb, want);
+        }
+    }
+
     void ApplyStyle()
     {
         var managers = Find("ControllerInputActionManager");
@@ -134,6 +164,7 @@ public class ControlsApplier : MonoBehaviour
             }
             bool smooth = CubeSettings.GetInt("controls.turnstyle", 0) == 1;
             foreach (var m in managers) SetSmooth(m, smooth);
+            ApplyTurnAround(smooth);
             return;
         }
 
@@ -155,5 +186,6 @@ public class ControlsApplier : MonoBehaviour
         int style = CubeSettings.GetInt("controls.turnstyle", 0);      // 0 = snap, 1 = smooth
         foreach (var s in snaps) if (s.enabled != (style == 0)) s.enabled = style == 0;
         foreach (var s in smooths) if (s.enabled != (style == 1)) s.enabled = style == 1;
+        ApplyTurnAround(style == 1);
     }
 }

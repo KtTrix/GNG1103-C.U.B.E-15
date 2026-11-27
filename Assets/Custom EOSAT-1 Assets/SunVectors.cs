@@ -30,6 +30,7 @@ public class SunVectors : MonoBehaviour
     float earthRadius;
     GameObject earthArrow, satArrow;
     int stamp, born;
+    int seenJumps; float holdUntil, kSmooth = -1f;
 
     public void Init(SpaceWorld w, Transform sat, float radius)
     {
@@ -102,6 +103,12 @@ public class SunVectors : MonoBehaviour
             axesLen = Mathf.Min(axesLen, d * S.satMaxFractionOfDistance);
             k = axesLen / Mathf.Max(1e-7f, axesNatural);
         }
+        // time was moved (a click on the bar): the satellite jumps while the camera is still catching up, so the distance
+        // is briefly huge. Keep the old growth for a moment, then ease to the new one, so the arrows never balloon.
+        if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; holdUntil = Time.unscaledTime + 0.7f; }
+        if (kSmooth < 0f) kSmooth = k;
+        else if (Time.unscaledTime >= holdUntil) kSmooth = Mathf.Lerp(kSmooth, k, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
+        k = kSmooth;
         float length = S.sunSatLength * satScale * k;
         satArrow.transform.localPosition = transform.InverseTransformPoint(satellite.position);
         satArrow.transform.localRotation = aim;

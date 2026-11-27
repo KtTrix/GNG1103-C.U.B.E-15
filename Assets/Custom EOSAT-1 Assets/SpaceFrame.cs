@@ -278,7 +278,7 @@ public class SpaceFrame : MonoBehaviour
         else if (lastFrame != null && smoothBetweenFrames && State.HasSatellite)
         {
             // Time moved on purpose (dragging, paused, fast or backwards): show recorded frames exactly, no carrying forward.
-            if (!(Timeline.Replaying && (Timeline.Scrubbing || Mathf.Abs(Timeline.Rate - 1f) > 0.001f))) Extrapolate();
+            if (!Timeline.Replaying) Extrapolate();          // replaying: the blend between recorded frames (below) does this better
         }
         else if (lastFrame == null)
         {
@@ -286,11 +286,93 @@ public class SpaceFrame : MonoBehaviour
             // so the Earth, Moon and Sun are still there. The satellite is hidden until data comes.
             ComputeSkyOnly(DateTime.UtcNow, earthRotationOffsetDeg, State);
         }
+        // Rewinding, fast-forwarding or dragging: the recorded frames are only ~10 a second, so blend between the two the playhead is
+        // between, every rendered frame. (Showing the frames as they are made backwards play judder.)
+        ReplayInterpolating = false;
+        if (smoothBetweenFrames && State.HasSatellite && Timeline.Replaying) InterpolateReplay();
+
         if (debugText != null && Time.unscaledTime >= nextDebug)
         {
             nextDebug = Time.unscaledTime + 0.25f;
             debugText.text = DebugString();
         }
+    }
+
+    // ── smooth replay (see Update) ──
+    /// <summary>True while the state is a blend between two recorded frames; the globe's dot then follows ReplayEciKm / ReplayGmstDeg.</summary>
+    public static bool ReplayInterpolating;
+    public static Vector3 ReplayEciKm;        // as the stub sends it (x, y, z), not Unity's axes
+    public static double ReplayGmstDeg;
+
+    SpaceState ipA = new SpaceState(), ipB = new SpaceState();
+    int ipIndex = -1, ipJumps = -1;
+    bool ipOk;
+
+    void InterpolateReplay()
+    {
+        if (!Timeline.Bracket(out int i, out float u)) return;
+        if (ipJumps != Timeline.Jumps) { ipJumps = Timeline.Jumps; ipIndex = -1; }
+        if (i != ipIndex)
+        {
+            if (ipIndex >= 0 && i == ipIndex + 1 && ipOk)
+            {
+                var tmp = ipA; ipA = ipB; ipB = tmp;                     // moved on one frame: the old B is the new A
+                var fb2 = Timeline.FrameAt(i + 1);
+                ipOk = fb2 != null && Compute(fb2, earthRotationOffsetDeg, ipB);
+            }
+            else
+            {
+                var fa = Timeline.FrameAt(i); var fb = Timeline.FrameAt(i + 1);
+                ipOk = fa != null && fb != null && Compute(fa, earthRotationOffsetDeg, ipA) && Compute(fb, earthRotationOffsetDeg, ipB);
+            }
+            ipIndex = i;
+            // frames far apart (a restart, a gap) are not blended
+            if (ipOk) ipOk = ipA.HasSatellite && ipB.HasSatellite &&
+                             Math.Abs((ipB.UtcTime - ipA.UtcTime).TotalSeconds) < 3600.0 && (ipB.SatPosKm - ipA.SatPosKm).magnitude < 2000f;
+        }
+        if (!ipOk) return;
+
+        var a = ipA; var b = ipB; var s = State;
+        s.SatPosKm = Vector3.Slerp(a.SatPosKm, b.SatPosKm, u);
+        s.SatVelKmS = Vector3.Slerp(a.SatVelKmS, b.SatVelKmS, u);
+        Quaternion qb = b.SatRotation;
+        if (Quaternion.Dot(a.SatRotation, qb) < 0f) qb = new Quaternion(-qb.x, -qb.y, -qb.z, -qb.w);
+        s.SatRotation = Quaternion.Slerp(a.SatRotation, qb, u);
+
+        double dg = b.GmstDeg - a.GmstDeg;
+        dg -= 360.0 * Math.Round(dg / 360.0);
+        s.GmstDeg = a.GmstDeg + dg * u;
+        s.EarthRotation = Quaternion.Euler(0f, (float)(-s.GmstDeg) + earthRotationOffsetDeg, 0f);
+        s.UtcTime = a.UtcTime.AddSeconds((b.UtcTime - a.UtcTime).TotalSeconds * u);
+        s.SunPosKm = Vector3.Lerp(a.SunPosKm, b.SunPosKm, u);
+        s.MoonPosKm = Vector3.Lerp(a.MoonPosKm, b.MoonPosKm, u);
+        s.SunDir = Vector3.Slerp(a.SunDir, b.SunDir, u);
+        s.AltKm = a.AltKm + (b.AltKm - a.AltKm) * u;
+        s.SunFraction = Mathf.Lerp(a.SunFraction, b.SunFraction, u);
+        s.WingPlusYFraction = Mathf.Lerp(a.WingPlusYFraction, b.WingPlusYFraction, u);
+        s.WingMinusYFraction = Mathf.Lerp(a.WingMinusYFraction, b.WingMinusYFraction, u);
+
+        double px = s.SatPosKm.x, py = s.SatPosKm.z, pz = s.SatPosKm.y;   // back to ECI for lat/lon
+        s.SubLatDeg = Math.Atan2(pz, Math.Sqrt(px * px + py * py)) * 180.0 / Math.PI;
+        double lon = Math.Atan2(py, px) * 180.0 / Math.PI - s.GmstDeg;
+        s.SubLonDeg = ((lon + 540.0) % 360.0) - 180.0;
+        s.SatToEarthKm = s.SatPosKm.magnitude;
+        s.SatToSunKm = (s.SunPosKm - s.SatPosKm).magnitude;
+        s.SatToMoonKm = (s.MoonPosKm - s.SatPosKm).magnitude;
+        s.EarthDirBody = SpaceMath.WorldToBody(s.SatRotation, (-s.SatPosKm).normalized);
+        s.SunDirBody = SpaceMath.WorldToBody(s.SatRotation, (s.SunPosKm - s.SatPosKm).normalized);
+        s.MoonDirBody = SpaceMath.WorldToBody(s.SatRotation, (s.MoonPosKm - s.SatPosKm).normalized);
+
+        // Anything on the path that is LATER than the satellite now (rewinding leaves those behind) is taken off, so the trail
+        // always ends on the satellite instead of running out in front of it and doubling back.
+        double nowSim = s.UtcTime.Ticks / (double)TimeSpan.TicksPerSecond;
+        int cut = 0;
+        while (History.Count > 0 && History[History.Count - 1].SimSeconds > nowSim + 0.05) { History.RemoveAt(History.Count - 1); cut++; }
+        if (cut > 0) { HistoryVersion++; lastRebuildCount = -1; lastRebuildKey = -1; }
+
+        ReplayEciKm = new Vector3(s.SatPosKm.x, s.SatPosKm.z, s.SatPosKm.y);
+        ReplayGmstDeg = s.GmstDeg;
+        ReplayInterpolating = true;
     }
 
     void NoteRawFrame()

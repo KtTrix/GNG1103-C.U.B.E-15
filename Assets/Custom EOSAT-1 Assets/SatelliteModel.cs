@@ -130,9 +130,58 @@ public class SatelliteModel : MonoBehaviour
         holder.SetParent(hinge, false);
         holder.localPosition = new Vector3(0f, panelLength * 0.5f, side * t * 0.5f);
 
-        Box("Back", holder, Vector3.zero, new Vector3(panelWidth, panelLength, t), backMat);
-        float cellOffset = side * (t * 0.5f + 0.0005f);
-        Box("Cells", holder, new Vector3(0f, 0f, cellOffset), new Vector3(panelWidth * 0.94f, panelLength * 0.97f, 0.001f), cellMat);
+        // ONE mesh for the whole flap: the grey back and sides are one material, the outer face (the solar cells) is another.
+        // (It used to be a thin "cells" box laid 0.5 mm over a grey box. Two surfaces that close together share almost the same
+        // depth, so the graphics card could not decide which was in front and the wings flickered and showed through themselves.)
+        var go = new GameObject("Wing", typeof(MeshFilter), typeof(MeshRenderer));
+        go.transform.SetParent(holder, false);
+        go.GetComponent<MeshFilter>().sharedMesh = WingMesh(panelWidth, panelLength, t, side);
+        var r = go.GetComponent<MeshRenderer>();
+        r.sharedMaterials = new[] { backMat, cellMat };
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
+    }
+
+    // A flat box (w along x, l along y, t along z). Submesh 0 = back and sides, submesh 1 = the outer face (+z if side > 0, else -z).
+    static Mesh WingMesh(float w, float l, float t, float side)
+    {
+        var verts = new System.Collections.Generic.List<Vector3>();
+        var norms = new System.Collections.Generic.List<Vector3>();
+        var uvs = new System.Collections.Generic.List<Vector2>();
+        var tri0 = new System.Collections.Generic.List<int>();
+        var tri1 = new System.Collections.Generic.List<int>();
+        float hx = w * 0.5f, hy = l * 0.5f, hz = t * 0.5f;
+
+        void Face(System.Collections.Generic.List<int> tris, Vector3 n, Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+        {
+            // corners in order around the face; flip them if the winding would face inward
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), n) < 0f) { var tmp = b; b = d; d = tmp; }
+            int i = verts.Count;
+            verts.Add(a); verts.Add(b); verts.Add(c); verts.Add(d);
+            for (int k = 0; k < 4; k++) norms.Add(n);
+            uvs.Add(new Vector2(0, 0)); uvs.Add(new Vector2(1, 0)); uvs.Add(new Vector2(1, 1)); uvs.Add(new Vector2(0, 1));
+            tris.Add(i); tris.Add(i + 1); tris.Add(i + 2); tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);
+        }
+
+        float so = side >= 0f ? 1f : -1f;
+        // outer face (cells)
+        Face(tri1, new Vector3(0, 0, so), new Vector3(-hx, -hy, so * hz), new Vector3(hx, -hy, so * hz), new Vector3(hx, hy, so * hz), new Vector3(-hx, hy, so * hz));
+        // inner face and the four sides (grey)
+        Face(tri0, new Vector3(0, 0, -so), new Vector3(-hx, -hy, -so * hz), new Vector3(hx, -hy, -so * hz), new Vector3(hx, hy, -so * hz), new Vector3(-hx, hy, -so * hz));
+        Face(tri0, new Vector3(1, 0, 0), new Vector3(hx, -hy, -hz), new Vector3(hx, hy, -hz), new Vector3(hx, hy, hz), new Vector3(hx, -hy, hz));
+        Face(tri0, new Vector3(-1, 0, 0), new Vector3(-hx, -hy, -hz), new Vector3(-hx, hy, -hz), new Vector3(-hx, hy, hz), new Vector3(-hx, -hy, hz));
+        Face(tri0, new Vector3(0, 1, 0), new Vector3(-hx, hy, -hz), new Vector3(hx, hy, -hz), new Vector3(hx, hy, hz), new Vector3(-hx, hy, hz));
+        Face(tri0, new Vector3(0, -1, 0), new Vector3(-hx, -hy, -hz), new Vector3(hx, -hy, -hz), new Vector3(hx, -hy, hz), new Vector3(-hx, -hy, hz));
+
+        var m = new Mesh { name = "Solar flap" };
+        m.SetVertices(verts);
+        m.SetNormals(norms);
+        m.SetUVs(0, uvs);
+        m.subMeshCount = 2;
+        m.SetTriangles(tri0, 0);
+        m.SetTriangles(tri1, 1);
+        m.RecalculateBounds();
+        return m;
     }
 
     // ── updating ─────────────────────────────────────────────────────────────
@@ -263,7 +312,8 @@ public class SatelliteModel : MonoBehaviour
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
-                bool line = (x % 32 < 2) || (y % 32 < 2);
+                bool border = x < 3 || x >= w - 3 || y < 3 || y >= h - 3;
+                bool line = border || (x % 32 < 2) || (y % 32 < 2);
                 px[y * w + x] = line ? new Color32(190, 195, 205, 255) : new Color32(255, 255, 255, 255);
             }
         t.SetPixels32(px);

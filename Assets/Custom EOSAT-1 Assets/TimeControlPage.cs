@@ -64,10 +64,10 @@ public class TimeControlPage : MonoBehaviour
         bool live = Timeline.Live;
         float start = Timeline.Start, end = Timeline.End, pos = Timeline.Position;
 
-        if (bar != null && !Timeline.Scrubbing) bar.SetValueWithoutNotify(Timeline.Fraction);
-
         bool textsDue = Time.unscaledTime >= nextText;
         if (textsDue) nextText = Time.unscaledTime + 0.1f;
+        // The bar moves with the same 10-a-second beat as the text: changing it every frame makes the whole menu panel redraw every frame while playing.
+        if (bar != null && !Timeline.Scrubbing && textsDue) bar.SetValueWithoutNotify(Timeline.Fraction);
         if (textsDue && timeText != null)
         {
             string sim = "";

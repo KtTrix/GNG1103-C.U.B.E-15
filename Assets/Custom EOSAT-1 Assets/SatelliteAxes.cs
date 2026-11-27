@@ -36,6 +36,8 @@ public class SatelliteAxes : MonoBehaviour
     void OnDestroy() { CubeSettings.Changed -= OnChanged; }
     void OnChanged(string key) { if (key == Key) on = CubeSettings.GetBool(Key, true); }
 
+    int seenJumps; float holdUntil, kSmooth = -1f;
+
     void Rebuild()
     {
         var S = SpaceMarkerSettings.Instance;
@@ -73,6 +75,12 @@ public class SatelliteAxes : MonoBehaviour
             length = Mathf.Min(length, d * S.satMaxFractionOfDistance);                                              // never reach toward you when close
             k = length / natural;
         }
+        // time was moved (a click on the bar): the satellite jumps while the camera is still catching up, so the distance
+        // is briefly huge. Keep the old growth for a moment, then ease to the new one, so the arrows never balloon.
+        if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; holdUntil = Time.unscaledTime + 0.7f; }
+        if (kSmooth < 0f) kSmooth = k;
+        else if (Time.unscaledTime >= holdUntil) kSmooth = Mathf.Lerp(kSmooth, k, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
+        k = kSmooth;
         root.transform.localScale = Vector3.one * k;
     }
 }

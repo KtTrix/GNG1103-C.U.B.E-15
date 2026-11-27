@@ -340,7 +340,9 @@ public class Tutorial : MonoBehaviour
     {
         if (i >= steps.Count) { Finish(true); return; }
         index = i;
+        cardPlaced = false;           // each new step: the card reappears in front of you, wherever you are looking now
         doneAt = -1f;
+        cardPlaced = false;                 // each new step brings the card back in front of you, wherever you are looking now
         enteredAt = Time.unscaledTime;
         var s = steps[i];
         s.enter?.Invoke();
