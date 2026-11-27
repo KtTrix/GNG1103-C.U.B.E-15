@@ -36,7 +36,8 @@ public class SatelliteAxes : MonoBehaviour
     void OnDestroy() { CubeSettings.Changed -= OnChanged; }
     void OnChanged(string key) { if (key == Key) on = CubeSettings.GetBool(Key, true); }
 
-    int seenJumps; float holdUntil, kSmooth = -1f;
+    int seenJumps; float holdUntil;
+    readonly System.Collections.Generic.Dictionary<Camera, float> lastK = new System.Collections.Generic.Dictionary<Camera, float>();
 
     void Rebuild()
     {
@@ -75,12 +76,15 @@ public class SatelliteAxes : MonoBehaviour
             length = Mathf.Min(length, d * S.satMaxFractionOfDistance);                                              // never reach toward you when close
             k = length / natural;
         }
-        // time was moved (a click on the bar): the satellite jumps while the camera is still catching up, so the distance
-        // is briefly huge. Keep the old growth for a moment, then ease to the new one, so the arrows never balloon.
+        // Time was moved (a click on the bar): the satellite jumps while the camera is still catching up, so the distance is
+        // briefly huge. For a moment each camera keeps the growth it had just before, so the arrows never balloon.
+        // Otherwise the growth is exactly what the distance says (remembered per camera, since views have different distances).
         if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; holdUntil = Time.unscaledTime + 0.7f; }
-        if (kSmooth < 0f) kSmooth = k;
-        else if (Time.unscaledTime >= holdUntil) kSmooth = Mathf.Lerp(kSmooth, k, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
-        k = kSmooth;
+        if (cam != null)
+        {
+            if (Time.unscaledTime < holdUntil && lastK.TryGetValue(cam, out float held)) k = held;
+            else lastK[cam] = k;
+        }
         root.transform.localScale = Vector3.one * k;
     }
 }

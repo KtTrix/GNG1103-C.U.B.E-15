@@ -30,7 +30,8 @@ public class SunVectors : MonoBehaviour
     float earthRadius;
     GameObject earthArrow, satArrow;
     int stamp, born;
-    int seenJumps; float holdUntil, kSmooth = -1f;
+    int seenJumps; float holdUntil;
+    readonly System.Collections.Generic.Dictionary<Camera, float> lastK = new System.Collections.Generic.Dictionary<Camera, float>();
 
     public void Init(SpaceWorld w, Transform sat, float radius)
     {
@@ -103,12 +104,15 @@ public class SunVectors : MonoBehaviour
             axesLen = Mathf.Min(axesLen, d * S.satMaxFractionOfDistance);
             k = axesLen / Mathf.Max(1e-7f, axesNatural);
         }
-        // time was moved (a click on the bar): the satellite jumps while the camera is still catching up, so the distance
-        // is briefly huge. Keep the old growth for a moment, then ease to the new one, so the arrows never balloon.
+        // Time was moved (a click on the bar): the satellite jumps while the camera is still catching up, so the distance is
+        // briefly huge. For a moment each camera keeps the growth it had just before, so the arrows never balloon.
+        // Otherwise the growth is exactly what the distance says (remembered per camera, since views have different distances).
         if (seenJumps != Timeline.Jumps) { seenJumps = Timeline.Jumps; holdUntil = Time.unscaledTime + 0.7f; }
-        if (kSmooth < 0f) kSmooth = k;
-        else if (Time.unscaledTime >= holdUntil) kSmooth = Mathf.Lerp(kSmooth, k, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
-        k = kSmooth;
+        if (cam != null)
+        {
+            if (Time.unscaledTime < holdUntil && lastK.TryGetValue(cam, out float held)) k = held;
+            else lastK[cam] = k;
+        }
         float length = S.sunSatLength * satScale * k;
         satArrow.transform.localPosition = transform.InverseTransformPoint(satellite.position);
         satArrow.transform.localRotation = aim;

@@ -162,6 +162,14 @@ public static class PanelManager
     {
         while (Head == null) yield return null;
 
+        // Turn a backwards start round as early as possible: as soon as the headset's real pose arrives (the position moves off its
+        // first, default reading), not after the longer settle wait below.
+        Vector3 first = Head.position;
+        float early = 0f;
+        while (early < 2f && (Head.position - first).sqrMagnitude < 0.0001f) { yield return null; early += Time.unscaledDeltaTime; }
+        yield return new WaitForSecondsRealtime(0.15f);
+        if (Head.localPosition.y > 0.3f) AlignStartFacing();
+
         float waited = 0f, steady = 0f;
         Vector3 last = Head.position;
         while (waited < 10f && steady < 1f)
@@ -173,6 +181,32 @@ public static class PanelManager
             steady = (tracked && still) ? steady + Time.unscaledDeltaTime : 0f;
             last = Head.position;
         }
+        AlignStartFacing();
+    }
+
+    static bool startAligned;
+
+    /// <summary>
+    /// Once, when the app starts: on the headset the tracking origin can point the opposite way to the scene (the log showed the head
+    /// facing 180 degrees from the rig), so turn the rig around the player's head until they face the way the scene faces (the globe).
+    /// </summary>
+    static void AlignStartFacing()
+    {
+        if (startAligned) return;
+        startAligned = true;
+        var xr = Rig;
+        if (xr == null || xr.Camera == null) return;
+        Vector3 up = xr.Origin.transform.up;
+        Vector3 want = Vector3.ProjectOnPlane(xr.Origin.transform.forward, up);
+        Vector3 have = Vector3.ProjectOnPlane(xr.Camera.transform.forward, up);
+        if (want.sqrMagnitude < 1e-4f || have.sqrMagnitude < 1e-4f) return;
+        float angle = Vector3.SignedAngle(have, want, up);
+        // Only fix a start that is clearly backwards. A smaller angle is just the player looking around, and must not be "corrected".
+        if (Mathf.Abs(angle) < 120f) { Debug.Log("[PanelManager] start facing fine (" + angle.ToString("F0") + " degrees off), not turning"); return; }
+        angle = 180f;
+        Debug.Log("[PanelManager] start facing: turning the rig " + angle.ToString("F0") + " degrees");
+        xr.RotateAroundCameraUsingOriginUp(angle);
+        MarkRig();
     }
 
     public static void Register(GrabbablePanel p)
